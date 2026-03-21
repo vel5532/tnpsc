@@ -740,10 +740,8 @@ function LoginPage() {
       showToast({msg: msgs[err.code]||err.message||"Failed to send OTP", type:"error"});
 
       // Fallback to demo mode
-      setOtpMode("demo");
-      setStep("otp");
-      setTimer(60);
-      showToast({msg:"Falling back to demo mode — OTP is 1234",type:"warning"});
+      console.error("Firebase OTP Error:", err);
+showToast({msg:"Failed to send OTP. Please try again.", type:"error"});
     }
 
     setLoad(false);
