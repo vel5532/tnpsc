@@ -268,7 +268,12 @@ const useApp = () => useContext(Ctx);
 // ═══════════════════════════════════════
 // CONFIG  — change these
 // ═══════════════════════════════════════
-const ADMIN_PHONE    = "9999999999"; // Change this
+// ══════════════════════════════════════════════════════
+// CHANGE THIS to YOUR mobile number
+// When you enter this number → you go straight to Admin
+// No OTP needed for admin — instant access
+// ══════════════════════════════════════════════════════
+const ADMIN_PHONE = "8667678910"; // ← REPLACE with your number e.g. "9876543210"
 
 // ── DEMO LOGIN (callable from anywhere) ──
 function demoLogin(role) {
@@ -671,10 +676,10 @@ function LoginPage() {
       return;
     }
 
-    // ── Admin shortcut (no OTP needed) ──
+    // ── Admin shortcut: your number gets direct access, no OTP ──
     if(phone === ADMIN_PHONE){
       await new Promise(r=>setTimeout(r,400));
-      const admin = {id:"admin", name:"Admin", phone:ADMIN_PHONE, role:"admin", status:"active"};
+      const admin = {id:"admin", name:"Velprakash", phone:ADMIN_PHONE, role:"admin", status:"active"};
       DB.saveS(admin); setUser(admin); nav("admin");
       showToast({msg:"Welcome Admin! 👑",type:"success"});
       setLoad(false); return;
@@ -3425,9 +3430,17 @@ function App() {
     };
     window.addEventListener("e11_daily", dailyHandler);
 
+    // Listen for admin actions that need re-render
+    const rerenderHandler = () => {
+      // Force React to re-render by toggling a dummy state
+      setToast(null);
+    };
+    window.addEventListener("e11_rerender", rerenderHandler);
+
     return ()=>{
       window.removeEventListener("e11_demo_login",handler);
       window.removeEventListener("e11_daily",dailyHandler);
+      window.removeEventListener("e11_rerender",rerenderHandler);
     };
   },[]);
 
