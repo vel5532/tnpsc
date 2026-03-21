@@ -688,21 +688,22 @@ function LoginPage() {
     }
 
     // ── Real Firebase Phone Auth ──
-    try {
-      // Setup invisible reCAPTCHA
-      if(!window._recaptchaVerifier){
-        window._recaptchaVerifier = new fb.RecaptchaVerifier(
-          fb.auth,
-          "recaptcha-container",
-          {
-            size: "invisible",
-            callback: ()=>{},
-            "expired-callback": ()=>{
-              window._recaptchaVerifier = null;
-            }
-          }
-        );
+    if(!window._recaptchaVerifier){
+  window._recaptchaVerifier = new fb.RecaptchaVerifier(
+    fb.auth,
+    "recaptcha-container",
+    {
+      size: "invisible",
+      callback: ()=>{},
+      "expired-callback": ()=>{
+        window._recaptchaVerifier = null;
       }
+    }
+  );
+
+  // 🔥 ADD THIS LINE (MOST IMPORTANT)
+  await window._recaptchaVerifier.render();
+}
 
       const fullPhone = "+91" + phone;
       const confirmation = await fb.signInWithPhoneNumber(
@@ -723,8 +724,9 @@ function LoginPage() {
 
       // Reset recaptcha on error
       if(window._recaptchaVerifier){
-        window._recaptchaVerifier.clear();
-        window._recaptchaVerifier = null;
+  window._recaptchaVerifier.clear();
+  window._recaptchaVerifier = null;
+}
       }
 
       // Friendly error messages
