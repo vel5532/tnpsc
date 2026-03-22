@@ -15,7 +15,7 @@
 <!-- Firebase Firestore only (no auth) -->
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import{getFirestore,doc,setDoc,getDoc,updateDoc,collection,getDocs,onSnapshot,addDoc,query,orderBy}
+import{getFirestore,doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,onSnapshot,addDoc,query,orderBy}
   from"https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 // ══════════════════════════════════════════
 // PASTE YOUR FIREBASE CONFIG HERE
@@ -31,7 +31,7 @@ const cfg={
 try{
   const app=initializeApp(cfg);
   const db=getFirestore(app);
-  window._fb={db,doc,setDoc,getDoc,updateDoc,collection,getDocs,onSnapshot,addDoc,query,orderBy};
+  window._fb={db,doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,onSnapshot,addDoc,query,orderBy};
   console.log("✅ Firestore ready");
 }catch(e){console.warn("Firebase not configured — offline mode");window._fb=null;}
 </script>
@@ -2091,41 +2091,107 @@ function adminUsers(users){
     }).catch(()=>{window._userRefreshing=false;});
   }
   const filter=S.data?.userFilter||'all';
-  const filtered=users.filter(u=>filter==='all'||u.status===filter);
+  const filtered=users.filter(u=>{
+    if(filter==='all')       return true;
+    if(filter==='subscribed')return isSubscribed(u.phone)&&u.role!=='admin';
+    if(filter==='expired')   return u.paidUntil&&new Date(u.paidUntil)<new Date()&&u.status==='active';
+    return u.status===filter;
+  });
   const pending=users.filter(u=>u.status==='pending');
   return `
-  ${pending.length>0?`<div style="padding:12px 14px;border-radius:12px;background:rgba(234,179,8,.1);border:1.5px solid rgba(234,179,8,.35);margin-bottom:12px">
+  <!-- Stats row -->
+  <div class="sg3" style="margin-bottom:12px">
+    ${[
+      {l:'Total',    v:users.length,                                                        c:'var(--ac)', i:'👥'},
+      {l:'Subscribed',v:users.filter(u=>isSubscribed(u.phone)&&u.role!=='admin').length,   c:'var(--gn)', i:'💳'},
+      {l:'Pending',  v:pending.length,                                                      c:'var(--yw)', i:'⏳'},
+      {l:'Expired',  v:users.filter(u=>u.paidUntil&&new Date(u.paidUntil)<new Date()).length,c:'var(--rd)',i:'❌'},
+      {l:'Banned',   v:users.filter(u=>u.status==='banned').length,                        c:'var(--mu)', i:'🚫'},
+      {l:'Revenue',  v:'₹'+getPayments().filter(p=>p.status==='approved').reduce((a,b)=>a+b.amount,0), c:'var(--a3)', i:'💰'},
+    ].map(s=>`<div class="sb"><div style="font-size:16px;margin-bottom:3px">${s.i}</div><div style="font-size:15px;font-weight:900;color:${s.c}">${s.v}</div><div style="font-size:10px;color:var(--mu)">${s.l}</div></div>`).join('')}
+  </div>
+
+  ${pending.length>0?`<div style="padding:12px 14px;border-radius:12px;background:rgba(234,179,8,.1);border:1.5px solid rgba(234,179,8,.35);margin-bottom:12px;cursor:pointer" onclick="go('admin',{tab:'users',userFilter:'pending'})">
     <p style="font-weight:800;color:var(--yw);font-size:14px;margin-bottom:3px">⏳ ${pending.length} student${pending.length>1?'s':''} waiting for approval</p>
-    <p style="font-size:12px;color:var(--mu)">Find them below — tap ✅ Approve to grant access</p>
+    <p style="font-size:12px;color:var(--mu)">Tap to view → tap ✅ Approve to grant access</p>
   </div>`:''}
   <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;align-items:center">
-    ${['all','pending','active','banned'].map(f=>`<button onclick="go('admin',{tab:'users',userFilter:'${f}'})" style="flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${filter===f?'var(--ac)':'var(--s2)'};color:${filter===f?'#000':'var(--mu)'};border:1px solid ${filter===f?'var(--ac)':'var(--bd)'}">${f.charAt(0).toUpperCase()+f.slice(1)} (${users.filter(u=>f==='all'||u.status===f).length})</button>`).join('')}
+    ${['all','pending','active','subscribed','expired','banned'].map(f=>`<button onclick="go('admin',{tab:'users',userFilter:'${f}'})" style="flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${filter===f?'var(--ac)':'var(--s2)'};color:${filter===f?'#000':'var(--mu)'};border:1px solid ${filter===f?'var(--ac)':'var(--bd)'}">
+      ${f==='all'?'All':f==='pending'?'⏳ Pending':f==='active'?'✅ Active':f==='subscribed'?'💳 Subscribed':f==='expired'?'❌ Expired':'🚫 Banned'} (${
+        f==='all'?users.length:
+        f==='subscribed'?users.filter(u=>isSubscribed(u.phone)&&u.role!=='admin').length:
+        f==='expired'?users.filter(u=>u.paidUntil&&new Date(u.paidUntil)<new Date()&&u.status==='active').length:
+        users.filter(u=>u.status===f).length})
+    </button>`).join('')}
     <button onclick="refreshUsersFromCloud()" style="flex-shrink:0;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:var(--s2);color:var(--a3);border:1px solid var(--bd)" title="Sync from Firestore">🔄</button>
   </div>
   ${filtered.length===0?`<div style="text-align:center;padding:30px 0;color:var(--mu)">No ${filter} users</div>`:filtered.map(u=>{
-    const ur=results.filter(r=>r.userId===u.phone);
-    const avg=ur.length?Math.round(ur.reduce((a,b)=>a+b.score,0)/ur.length):0;
-    const sub=isSubscribed(u.phone);
-    return `<div class="card" style="margin-bottom:10px;border-color:${u.status==='pending'?'rgba(234,179,8,.4)':'var(--bd)'}">
+    const ur      = results.filter(r=>r.userId===u.phone);
+    const avg     = ur.length ? Math.round(ur.reduce((a,b)=>a+b.score,0)/ur.length) : 0;
+    const sub     = isSubscribed(u.phone);
+    const pays    = getPayments().filter(p=>p.phone===u.phone&&p.status==='approved'&&p.type==='subscription');
+    const lastPay = pays[0];
+    const expiry  = u.paidUntil ? new Date(u.paidUntil) : null;
+    const daysLeft= expiry ? Math.ceil((expiry-new Date())/(1000*60*60*24)) : 0;
+    const expired = expiry && expiry < new Date();
+
+    return `<div class="card" style="margin-bottom:12px;border-color:${u.status==='pending'?'rgba(234,179,8,.45)':expired&&u.status==='active'?'rgba(239,68,68,.35)':'var(--bd)'}">
       <div class="cp">
-        <div style="display:flex;gap:11px;align-items:flex-start;margin-bottom:${u.status==='pending'?'10':'0'}px">
-          <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--ac),var(--a3));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#000;flex-shrink:0">${avatar(u.name)}</div>
+
+        <!-- Header row -->
+        <div style="display:flex;gap:11px;align-items:flex-start;margin-bottom:10px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--ac),var(--a3));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#000;flex-shrink:0">${avatar(u.name)}</div>
           <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;flex-wrap:wrap">
-              <p style="font-weight:700;font-size:14px">${u.name}</p>
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap">
+              <p style="font-weight:800;font-size:15px">${u.name}</p>
               <span class="badge ${u.status==='active'?'b-green':u.status==='pending'?'b-gold':'b-red'}">${u.status==='active'?'✅':u.status==='pending'?'⏳':'🚫'} ${u.status}</span>
-              ${sub?'<span class="badge b-green" style="font-size:10px">Subscribed</span>':''}
             </div>
             <p style="font-size:12px;color:var(--mu);font-family:'DM Mono',monospace">+91 ${u.phone}</p>
-            <p style="font-size:11px;color:var(--mu);margin-top:3px">📅 ${fmtDate(u.createdAt)} · 📝 ${ur.length} tests${ur.length?` · ⭐ ${avg}%`:''}</p>
+            <p style="font-size:11px;color:var(--mu);margin-top:3px">📅 Joined ${fmtDate(u.createdAt)} · 📝 ${ur.length} tests${avg?` · ⭐ ${avg}%`:''}</p>
           </div>
         </div>
-        ${u.status==='pending'?`<div style="display:flex;gap:8px">
-          <button class="btn btn-green btn-xs" onclick="adminApproveUser('${u.phone}')">✅ Approve</button>
-          <button class="btn btn-red btn-xs"   onclick="adminBanUser('${u.phone}')">🚫 Ban</button>
-        </div>`:u.status==='active'?`<div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-red btn-xs" onclick="adminBanUser('${u.phone}')">🚫 Ban</button>
-        </div>`:''}
+
+        <!-- Subscription status block -->
+        <div style="padding:10px 12px;border-radius:10px;background:${sub?'rgba(16,185,129,.08)':expired?'rgba(239,68,68,.08)':'rgba(100,116,139,.08)'};border:1px solid ${sub?'rgba(16,185,129,.25)':expired?'rgba(239,68,68,.25)':'rgba(100,116,139,.2)'};margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <p style="font-size:12px;font-weight:700;color:${sub?'var(--gn)':expired?'var(--rd)':'var(--mu)'}">
+                ${sub?'✅ Active Subscription':expired?'❌ Subscription Expired':'⚠️ Not Subscribed'}
+              </p>
+              ${expiry?`<p style="font-size:11px;color:var(--mu);margin-top:2px">
+                ${sub?`Valid until: <strong style="color:var(--gn)">${fmtDate(u.paidUntil)}</strong> · <strong style="color:${daysLeft<=5?'var(--rd)':'var(--ac)'}">${daysLeft}d left</strong>`
+                     :`Expired: <strong style="color:var(--rd)">${fmtDate(u.paidUntil)}</strong>`}
+              </p>`:`<p style="font-size:11px;color:var(--mu);margin-top:2px">No subscription yet</p>`}
+              ${pays.length>0?`<p style="font-size:11px;color:var(--mu);margin-top:2px">💳 ${pays.length} payment${pays.length>1?'s':''} · Last: ${fmtDate(lastPay.createdAt)}</p>`:''}
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <p style="font-size:18px;font-weight:900;color:${sub?'var(--gn)':expired?'var(--rd)':'var(--mu)'}">₹${pays.reduce((a,b)=>a+b.amount,0)}</p>
+              <p style="font-size:10px;color:var(--mu)">total paid</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${u.status==='pending'?`
+            <button class="btn btn-green btn-xs" onclick="adminApproveUser('${u.phone}')">✅ Approve</button>
+            <button class="btn btn-red btn-xs"   onclick="adminBanUser('${u.phone}')">🚫 Ban</button>
+            <button class="btn btn-red btn-xs"   onclick="adminDeleteUser('${u.phone}')">🗑 Delete</button>
+          `:''}
+          ${u.status==='active'?`
+            <button class="btn btn-gold btn-xs"  onclick="adminExtendSub('${u.phone}')">➕ Extend 30d</button>
+            <button class="btn btn-red btn-xs"   onclick="adminBanUser('${u.phone}')">🚫 Ban</button>
+            <button class="btn btn-red btn-xs"   onclick="adminDeleteUser('${u.phone}')">🗑 Delete</button>
+          `:''}
+          ${u.status==='banned'?`
+            <button class="btn btn-green btn-xs" onclick="adminApproveUser('${u.phone}')">✅ Restore</button>
+            <button class="btn btn-red btn-xs"   onclick="adminDeleteUser('${u.phone}')">🗑 Delete</button>
+          `:''}
+          ${expired&&u.status==='active'?`
+            <button class="btn btn-blue btn-xs"  onclick="adminExtendSub('${u.phone}')">🔄 Renew Sub</button>
+          `:''}
+        </div>
+
       </div>
     </div>`;}).join('')}`;
 }
@@ -2173,10 +2239,47 @@ async function adminApproveUser(phone) {
   render();
 }
 async function adminBanUser(phone){
-  if(!confirm('Ban this user?'))return;
+  if(!confirm('Ban this user? They cannot log in.'))return;
   const users=getUsers();const i=users.findIndex(u=>u.phone===phone);
-  if(i>=0){users[i].status='banned';saveUsers(users);await fsUpdate('users',phone,{status:'banned'}).catch(()=>{});}
+  if(i>=0){users[i].status='banned';saveUsers(users);fsUpdate('users',phone,{status:'banned'}).catch(()=>{});}
   toast('User banned','warning');render();
+}
+
+async function adminDeleteUser(phone){
+  const users=getUsers();
+  const u=users.find(x=>x.phone===phone);
+  if(!confirm(`Delete ${u?.name||phone} permanently? This cannot be undone.`))return;
+  const updated=users.filter(x=>x.phone!==phone);
+  saveUsers(updated);
+  // Delete from Firestore
+  const fb=window._fb;
+  if(fb){try{await fb.deleteDoc(fb.doc(fb.db,'users',phone));}catch(e){}}
+  // Also delete their payments from local
+  const pays=getPayments().filter(p=>p.phone!==phone);
+  savePayments(pays);
+  toast(`🗑 ${u?.name||phone} deleted`,'warning');
+  render();
+}
+
+async function adminExtendSub(phone){
+  const users=getUsers();
+  const i=users.findIndex(u=>u.phone===phone);
+  if(i<0)return;
+  // Extend from today or from current expiry (whichever is later)
+  const now=new Date();
+  const current=users[i].paidUntil?new Date(users[i].paidUntil):now;
+  const base=current>now?current:now;
+  users[i].paidUntil=new Date(base.getTime()+30*24*60*60*1000).toISOString();
+  users[i].status='active';
+  users[i].subPaid=true;
+  saveUsers(users);
+  fsUpdate('users',phone,{paidUntil:users[i].paidUntil,status:'active',subPaid:true}).catch(()=>{});
+  // Log as admin-granted payment
+  const pay={id:'admin_ext_'+Date.now(),userId:phone,userName:users[i].name,phone,type:'subscription',amount:0,roomCode:'',razorpayId:null,upiRef:'admin_granted',payMethod:'admin',status:'approved',createdAt:new Date().toISOString(),approvedAt:new Date().toISOString()};
+  const allp=[pay,...getPayments()].slice(0,500);savePayments(allp);
+  fsSet('payments',pay.id,pay).catch(()=>{});
+  toast(`✅ ${users[i].name} subscription extended to ${new Date(users[i].paidUntil).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`,'success',5000);
+  render();
 }
 
 function adminTests(allTests){
