@@ -383,13 +383,15 @@ async function payWithRazorpay(user, type, amount, roomCode='') {
 async function approvePayment(payId) {
   const all = getPayments();
   const i   = all.findIndex(p => p.id === payId);
-  if (i < 0) return;
+  if (i < 0) { toast('Payment not found', 'error'); return; }
+
   all[i].status     = 'approved';
   all[i].approvedAt = new Date().toISOString();
   savePayments(all);
-  await fsUpdate('payments', payId, { status:'approved', approvedAt:all[i].approvedAt });
+
   const pay = all[i];
 
+  // Activate subscription — update local immediately
   if (pay.type === 'subscription') {
     const users = getUsers();
     const ui    = users.findIndex(u => u.phone === pay.phone);
@@ -398,10 +400,12 @@ async function approvePayment(payId) {
       users[ui].subPaid   = true;
       users[ui].paidUntil = new Date(Date.now() + 30*24*60*60*1000).toISOString();
       saveUsers(users);
-      await fsUpdate('users', pay.phone, { status:'active', subPaid:true, paidUntil:users[ui].paidUntil });
-      if (S.user && S.user.phone === pay.phone) { S.user = users[ui]; saveSession(S.user); }
+      // Firestore in background
+      fsUpdate('users', pay.phone, { status:'active', subPaid:true, paidUntil:users[ui].paidUntil }).catch(()=>{});
     }
   }
+
+  // Add to room
   if (pay.type === 'room_entry' && pay.roomCode) {
     const rooms = getRooms();
     const ri    = rooms.findIndex(r => r.code === pay.roomCode);
@@ -411,11 +415,14 @@ async function approvePayment(payId) {
         rooms[ri].members.push({ name:pay.userName, phone:pay.phone, joined:new Date().toISOString() });
         rooms[ri].pool = (rooms[ri].pool || 0) + pay.amount;
         saveRooms(rooms);
-        await fsSet('rooms', pay.roomCode, rooms[ri]);
+        fsSet('rooms', pay.roomCode, rooms[ri]).catch(()=>{});
       }
     }
   }
-  await syncToSheets({ sheet:'Payments', id:payId, status:'approved (manual)', approvedAt:all[i].approvedAt });
+
+  // Firestore & Sheets in background
+  fsUpdate('payments', payId, { status:'approved', approvedAt:all[i].approvedAt }).catch(()=>{});
+  syncToSheets({ sheet:'Payments', id:payId, status:'approved', approvedAt:all[i].approvedAt }).catch(()=>{});
 }
 
 async function rejectPayment(payId) {
@@ -431,14 +438,171 @@ async function rejectPayment(payId) {
 
 // ─── STATE ────────────────────────────────────────────────────
 const S = {
-  page: 'login',
-  user: null,
-  data: null,       // extra data for current page
-  toast: null,
+  page:        'login',
+  user:        null,
+  data:        null,
+  toast:       null,
   examSession: null,
-  examResult: null,
-  examTimer: null,
+  examResult:  null,
+  examTimer:   null,
+  // Real-time listener handles
+  _unsubUsers:    null,   // Firestore users listener
+  _unsubPayments: null,   // Firestore payments listener
+  _unsubRooms:    null,   // Firestore rooms listener
+  _pollTimer:     null,   // Fallback polling timer
 };
+
+// ══════════════════════════════════════════════════════════════
+// REAL-TIME ENGINE
+// Live updates via Firestore onSnapshot OR 5s polling fallback
+// ══════════════════════════════════════════════════════════════
+
+// Live badge counter shown in top-right
+function showLiveBadge(count, type='users') {
+  const id = 'live_badge_'+type;
+  let el = document.getElementById(id);
+  if (count <= 0) { if(el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = id;
+    el.style.cssText = 'position:fixed;top:12px;right:16px;z-index:999;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;animation:scaleIn .3s ease;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+    el.onclick = () => { if(S.user?.role==='admin') go('admin',{tab:'users'}); };
+    document.body.appendChild(el);
+  }
+  el.style.background = type==='users' ? 'var(--yw)' : 'var(--rd)';
+  el.style.color = '#000';
+  el.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#000;opacity:.5;animation:livePulse 1.5s infinite"></span> ${count} pending`;
+}
+
+// Start real-time listeners — called after login
+function startLiveListeners() {
+  stopLiveListeners(); // clean up old ones first
+
+  const fb = window._fb;
+
+  if (fb) {
+    // ── FIRESTORE REAL-TIME ──────────────────────────────
+    try {
+      // Listen to users collection
+      S._unsubUsers = fb.onSnapshot(
+        fb.collection(fb.db, 'users'),
+        (snap) => {
+          const fbUsers = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+          // Merge with local (Firestore wins)
+          const local = getUsers();
+          fbUsers.forEach(u => {
+            const i = local.findIndex(x => x.phone === u.phone);
+            if (i >= 0) local[i] = { ...local[i], ...u };
+            else local.push(u);
+          });
+          saveUsers(local);
+
+          // Update admin UI if on users tab
+          if (S.user?.role === 'admin' && S.page === 'admin') {
+            render(); // re-render admin panel
+          }
+
+          // Show badge if admin with pending users
+          if (S.user?.role === 'admin') {
+            const pending = local.filter(u => u.status === 'pending').length;
+            showLiveBadge(pending, 'users');
+          }
+
+          // Check if current user's status changed
+          if (S.user && S.user.role !== 'admin') {
+            const myFresh = fbUsers.find(u => u.phone === S.user.phone);
+            if (myFresh && myFresh.status !== S.user.status) {
+              S.user = { ...S.user, ...myFresh };
+              saveSession(S.user);
+              if (myFresh.status === 'active' && S.page === 'pending') {
+                toast('🎉 You have been approved! Welcome!', 'success', 5000);
+                go('home');
+              } else if (myFresh.status === 'banned') {
+                clearSession(); S.user = null;
+                toast('Your account has been banned.', 'error');
+                go('login');
+              }
+            }
+          }
+        },
+        (err) => {
+          console.warn('Users listener error:', err.message);
+          startPollingFallback(); // fall back to polling
+        }
+      );
+    } catch(e) {
+      console.warn('Could not start Firestore listener:', e.message);
+      startPollingFallback();
+    }
+
+    // ── PAYMENTS LISTENER ─────────────────────────────────
+    try {
+      S._unsubPayments = fb.onSnapshot(
+        fb.collection(fb.db, 'payments'),
+        (snap) => {
+          const fbPays = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+          const local  = getPayments();
+          fbPays.forEach(p => {
+            const i = local.findIndex(x => x.id === p.id);
+            if (i >= 0) local[i] = { ...local[i], ...p };
+            else local.unshift(p);
+          });
+          savePayments(local.slice(0, 500));
+
+          if (S.user?.role === 'admin' && S.page === 'admin' && S.data?.tab === 'payments') {
+            render();
+          }
+        },
+        (err) => console.warn('Payments listener error:', err.message)
+      );
+    } catch(e) {}
+
+  } else {
+    // ── POLLING FALLBACK (no Firebase) ────────────────────
+    startPollingFallback();
+  }
+}
+
+// Polling fallback — checks localStorage for changes every 5s
+// Works even without Firebase (changes made by admin on same device)
+function startPollingFallback() {
+  if (S._pollTimer) return; // already running
+
+  S._pollTimer = setInterval(() => {
+    // Check if current user status changed (for pending users)
+    if (S.user && S.user.role !== 'admin' && S.page === 'pending') {
+      const fresh = getUsers().find(u => u.phone === S.user.phone);
+      if (fresh && fresh.status === 'active') {
+        S.user = fresh; saveSession(fresh);
+        toast('🎉 Approved! Welcome!', 'success', 5000);
+        go('home');
+      } else if (fresh && fresh.status === 'banned') {
+        clearSession(); S.user = null;
+        toast('Account banned.', 'error');
+        go('login');
+      }
+    }
+
+    // Update admin badge
+    if (S.user?.role === 'admin') {
+      const pending = getUsers().filter(u => u.status === 'pending').length;
+      showLiveBadge(pending, 'users');
+      // Re-render admin users tab to show new registrations
+      if (S.page === 'admin' && S.data?.tab === 'users') {
+        render();
+      }
+    }
+  }, 5000); // every 5 seconds
+}
+
+function stopLiveListeners() {
+  if (S._unsubUsers)    { try{S._unsubUsers();}catch(e){} S._unsubUsers=null; }
+  if (S._unsubPayments) { try{S._unsubPayments();}catch(e){} S._unsubPayments=null; }
+  if (S._unsubRooms)    { try{S._unsubRooms();}catch(e){} S._unsubRooms=null; }
+  if (S._pollTimer)     { clearInterval(S._pollTimer); S._pollTimer=null; }
+  // Remove badges
+  document.querySelectorAll('[id^="live_badge_"]').forEach(el=>el.remove());
+}
 
 // ─── ROUTER ───────────────────────────────────────────────────
 function go(page, data={}) {
@@ -660,26 +824,82 @@ async function doLogin() {
   if (!/^[0-9]{10}$/.test(phone)) { toast('Enter valid 10-digit number','error'); return; }
 
   const btn = document.getElementById('login_btn');
-  btn.disabled=true; btn.textContent='Checking...';
+  if (btn) { btn.disabled=true; btn.textContent='Checking...'; }
 
-  // Admin shortcut
-  if (phone===ADMIN_PHONE) {
-    const admin={id:phone,name,phone,role:'admin',status:'active',createdAt:new Date().toISOString()};
-    await saveUser(admin); saveSession(admin); S.user=admin;
-    toast(`Welcome Admin, ${name}! 👑`,'success'); go('admin'); return;
+  const resetBtn = () => { if(btn){btn.disabled=false;btn.textContent='Sign In →';} };
+
+  try {
+    // Admin shortcut — no Firestore needed
+    if (phone === ADMIN_PHONE) {
+      const admin = { id:phone, name, phone, role:'admin', status:'active', createdAt:new Date().toISOString() };
+      // Save locally first (don't await Firestore)
+      const all = getUsers();
+      const i   = all.findIndex(u=>u.phone===phone);
+      if(i>=0) all[i]=admin; else all.push(admin);
+      saveUsers(all);
+      saveSession(admin);
+      S.user = admin;
+      // Try Firestore in background
+      fsSet('users', phone, admin).catch(()=>{});
+      toast('Welcome Admin! 👑','success');
+      startLiveListeners();
+      go('admin');
+      return;
+    }
+
+    // Check local storage FIRST (instant, no network)
+    let user = getUsers().find(u => u.phone === phone);
+
+    if (!user) {
+      // Try Firestore with 3 second timeout
+      try {
+        const fbUser = await Promise.race([
+          fsGet('users', phone),
+          new Promise(res => setTimeout(()=>res(null), 3000))
+        ]);
+        if (fbUser) user = fbUser;
+      } catch(e) { /* ignore - work offline */ }
+    }
+
+    if (!user) {
+      // New user — create locally immediately
+      user = { id:phone, name, phone, role:'student', status:'pending', createdAt:new Date().toISOString() };
+      const all = getUsers(); all.push(user); saveUsers(all);
+      // Firestore in background
+      fsSet('users', phone, user).catch(()=>{});
+      toast('Account created! Waiting for admin approval.','info');
+    } else {
+      // Update name if changed
+      if (user.name !== name) {
+        user.name = name;
+        const all = getUsers();
+        const i   = all.findIndex(u=>u.phone===phone);
+        if(i>=0) all[i]=user; saveUsers(all);
+        fsSet('users', phone, user).catch(()=>{});
+      }
+    }
+
+    saveSession(user);
+    S.user = user;
+
+    if (user.status === 'banned') {
+      clearSession(); S.user = null;
+      toast('Account banned. Contact admin.','error');
+      resetBtn(); return;
+    } else if (user.status === 'active') {
+      toast('Welcome back, '+user.name+'! 👋','success');
+      startLiveListeners();
+      go('home');
+    } else {
+      // pending — start listeners so student gets notified when approved
+      startLiveListeners();
+      go('pending');
+    }
+  } catch(err) {
+    console.error('Login error:', err);
+    toast('Login failed. Please try again.','error');
+    resetBtn();
   }
-
-  // Check existing
-  let user = await getUser(phone);
-  if (!user) {
-    user={id:phone,name,phone,role:'student',status:'pending',createdAt:new Date().toISOString()};
-    await saveUser(user); toast('Account created! Waiting for admin approval.','info');
-  } else if (user.name!==name) { user.name=name; await saveUser(user); }
-
-  saveSession(user); S.user=user;
-  if      (user.status==='banned')    { clearSession(); S.user=null; toast('Account banned. Contact admin.','error'); btn.disabled=false; btn.textContent='Sign In →'; return; }
-  else if (user.status==='active')    { toast(`Welcome back, ${user.name}! 👋`,'success'); go('home'); }
-  else                                { go('pending'); }
 }
 
 function demoLogin(role) {
@@ -688,6 +908,7 @@ function demoLogin(role) {
     : {id:'demo_student',name:'Demo Student',phone:'9876543210',role:'student',status:'active',subPaid:true,paidUntil:new Date(Date.now()+30*24*60*60*1000).toISOString()};
   saveSession(u); S.user=u;
   toast(`Welcome ${role==='admin'?'Admin ':''}Demo! 👋`,'success');
+  startLiveListeners();
   go(role==='admin'?'admin':'home');
 }
 
@@ -707,20 +928,45 @@ function pagePending() {
       </div>
       <button class="btn btn-gold" onclick="checkStatus()">🔄 Check Approval Status</button>
       <button class="btn btn-ghost btn-sm" onclick="clearSession();S.user=null;go('login')" style="margin-top:10px">← Back to Login</button>
-      <p style="font-size:11px;color:rgba(255,255,255,.18);margin-top:16px">Auto-checking every 10 seconds</p>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--gn);animation:livePulse 1.5s ease-in-out infinite"></span>
+        <p style="font-size:11px;color:rgba(255,255,255,.3)">${window._fb?'Listening for approval in real-time...':'Checking every 5 seconds...'}</p>
+      </div>
     </div>
   </div>`;
 }
 
 async function checkStatus() {
-  if(!S.user) return;
-  const fresh=await getUser(S.user.phone);
-  if(fresh&&fresh.status==='active'){
-    S.user=fresh; saveSession(fresh);
-    toast('Approved! 🎉','success'); go('home');
-  } else if(fresh&&fresh.status==='banned'){
-    clearSession();S.user=null;toast('Account banned.','error');go('login');
-  } else {
+  if (!S.user) return;
+
+  // Check local first (instant)
+  const localUser = getUsers().find(u => u.phone === S.user.phone);
+  if (localUser && localUser.status === 'active') {
+    S.user = localUser; saveSession(localUser);
+    toast('Approved! 🎉 Welcome!','success'); go('home'); return;
+  }
+  if (localUser && localUser.status === 'banned') {
+    clearSession(); S.user = null; toast('Account banned.','error'); go('login'); return;
+  }
+
+  // Then try Firestore with timeout
+  try {
+    const fresh = await Promise.race([
+      fsGet('users', S.user.phone),
+      new Promise(res => setTimeout(() => res(null), 3000))
+    ]);
+    if (fresh && fresh.status === 'active') {
+      // Update local copy
+      const all = getUsers(); const i = all.findIndex(u=>u.phone===fresh.phone);
+      if(i>=0)all[i]=fresh; saveUsers(all);
+      S.user = fresh; saveSession(fresh);
+      toast('Approved! 🎉 Welcome!','success'); go('home');
+    } else if (fresh && fresh.status === 'banned') {
+      clearSession(); S.user = null; toast('Account banned.','error'); go('login');
+    } else {
+      toast('Still pending. Admin will approve soon.','info');
+    }
+  } catch(e) {
     toast('Still pending. Check back soon.','info');
   }
 }
@@ -1710,7 +1956,16 @@ function toggleTheme(){
   document.documentElement.setAttribute('data-theme',cur==='light'?'dark':'light');
   LS.s('theme',cur==='light'?'dark':'light');
 }
-function logout(){clearSession();S.user=null;clearInterval(S.examTimer);clearInterval(S._roomPoll);clearInterval(S._hostPoll);clearInterval(S._lbPoll);go('login');toast('Signed out','info');}
+function logout(){
+  clearSession(); S.user=null;
+  clearInterval(S.examTimer);
+  clearInterval(S._roomPoll);
+  clearInterval(S._hostPoll);
+  clearInterval(S._lbPoll);
+  stopLiveListeners();
+  go('login');
+  toast('Signed out','info');
+}
 
 // ─── ADMIN ────────────────────────────────────────────────────
 function pageAdmin() {
@@ -1729,7 +1984,15 @@ function pageAdmin() {
   <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;max-width:480px;margin:0 auto">
     <div style="background:linear-gradient(135deg,#1a2540,#0d1f38);padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:1px solid rgba(245,158,11,.2)">
       <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--ac),var(--a3));display:flex;align-items:center;justify-content:center;font-size:18px">📚</div>
-      <div style="flex:1"><p style="font-weight:900;font-size:16px">Admin Panel</p><p style="font-size:11px;color:var(--mu)">TEST 11</p></div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px">
+          <p style="font-weight:900;font-size:16px">Admin Panel</p>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--gn);font-weight:700">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--gn);animation:livePulse 1.5s ease-in-out infinite"></span>Live
+          </span>
+        </div>
+        <p style="font-size:11px;color:var(--mu)">TEST 11 · Updates in real-time</p>
+      </div>
       <button onclick="go('home')" style="padding:6px 13px;border-radius:9px;background:rgba(245,158,11,.15);color:var(--ac);font-size:12px;font-weight:700;border:1px solid rgba(245,158,11,.3)">Student View</button>
     </div>
 
@@ -1815,11 +2078,29 @@ async function adminRejectPay(id){
 
 function adminUsers(users){
   const results=getResults();
+  // Silently refresh from Firestore in background
+  if(window._fb && !window._userRefreshing){
+    window._userRefreshing=true;
+    fsGetAll('users').then(fu=>{
+      if(fu&&fu.length>0){
+        const local=getUsers();
+        fu.forEach(u=>{const i=local.findIndex(x=>x.phone===u.phone);if(i>=0)local[i]={...local[i],...u};else local.push(u);});
+        saveUsers(local);
+      }
+      window._userRefreshing=false;
+    }).catch(()=>{window._userRefreshing=false;});
+  }
   const filter=S.data?.userFilter||'all';
   const filtered=users.filter(u=>filter==='all'||u.status===filter);
+  const pending=users.filter(u=>u.status==='pending');
   return `
-  <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto">
+  ${pending.length>0?`<div style="padding:12px 14px;border-radius:12px;background:rgba(234,179,8,.1);border:1.5px solid rgba(234,179,8,.35);margin-bottom:12px">
+    <p style="font-weight:800;color:var(--yw);font-size:14px;margin-bottom:3px">⏳ ${pending.length} student${pending.length>1?'s':''} waiting for approval</p>
+    <p style="font-size:12px;color:var(--mu)">Find them below — tap ✅ Approve to grant access</p>
+  </div>`:''}
+  <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;align-items:center">
     ${['all','pending','active','banned'].map(f=>`<button onclick="go('admin',{tab:'users',userFilter:'${f}'})" style="flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${filter===f?'var(--ac)':'var(--s2)'};color:${filter===f?'#000':'var(--mu)'};border:1px solid ${filter===f?'var(--ac)':'var(--bd)'}">${f.charAt(0).toUpperCase()+f.slice(1)} (${users.filter(u=>f==='all'||u.status===f).length})</button>`).join('')}
+    <button onclick="refreshUsersFromCloud()" style="flex-shrink:0;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:var(--s2);color:var(--a3);border:1px solid var(--bd)" title="Sync from Firestore">🔄</button>
   </div>
   ${filtered.length===0?`<div style="text-align:center;padding:30px 0;color:var(--mu)">No ${filter} users</div>`:filtered.map(u=>{
     const ur=results.filter(r=>r.userId===u.phone);
@@ -1849,10 +2130,47 @@ function adminUsers(users){
     </div>`;}).join('')}`;
 }
 
-async function adminApproveUser(phone){
-  const users=getUsers();const i=users.findIndex(u=>u.phone===phone);
-  if(i>=0){users[i].status='active';users[i].approvedAt=new Date().toISOString();saveUsers(users);await fsUpdate('users',phone,{status:'active',approvedAt:users[i].approvedAt}).catch(()=>{});}
-  toast(`✅ ${users[i]?.name||phone} approved!`,'success');render();
+async function refreshUsersFromCloud() {
+  toast('Refreshing users...','info',1500);
+  try {
+    const fu = await Promise.race([
+      fsGetAll('users'),
+      new Promise(res => setTimeout(() => res([]), 5000))
+    ]);
+    if (fu && fu.length > 0) {
+      const local = getUsers();
+      fu.forEach(u => {
+        const i = local.findIndex(x => x.phone === u.phone);
+        if (i >= 0) local[i] = { ...local[i], ...u };
+        else local.push(u);
+      });
+      saveUsers(local);
+      toast('✅ Users synced from cloud','success');
+      render();
+    } else {
+      toast('No cloud data or Firebase not configured','warning');
+    }
+  } catch(e) {
+    toast('Sync failed: ' + e.message,'error');
+  }
+}
+
+async function adminApproveUser(phone) {
+  const users = getUsers();
+  const i     = users.findIndex(u => u.phone === phone);
+  if (i < 0) { toast('User not found','error'); return; }
+
+  users[i].status     = 'active';
+  users[i].approvedAt = new Date().toISOString();
+  saveUsers(users);
+
+  // Update Firestore in background
+  fsUpdate('users', phone, { status:'active', approvedAt:users[i].approvedAt }).catch(()=>{});
+
+  toast('✅ '+users[i].name+' approved! They can now log in.','success', 4000);
+
+  // Re-render to show updated list
+  render();
 }
 async function adminBanUser(phone){
   if(!confirm('Ban this user?'))return;
@@ -2163,6 +2481,8 @@ function init(){
   const session=getSession();
   if(session){
     S.user=session;
+    // Start live listeners immediately
+    setTimeout(startLiveListeners, 500);
     if(session.role==='admin')           go('admin');
     else if(session.status==='active')   go('home');
     else if(session.status==='pending')  go('pending');
