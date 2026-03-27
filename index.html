@@ -171,24 +171,62 @@ button{cursor:pointer;background:none;color:inherit}
 .score-ring{position:relative;display:inline-flex;align-items:center;justify-content:center}
 .score-inner{position:absolute;text-align:center}
 
-/* ROOM CODE */
-.room-code{font-family:'DM Mono',monospace;font-size:28px;font-weight:900;letter-spacing:6px;color:var(--ac);text-align:center;padding:16px;background:rgba(245,158,11,.08);border:2px solid rgba(245,158,11,.3);border-radius:14px;cursor:pointer}
-.player-row{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;background:var(--s2);border:1px solid var(--bd);margin-bottom:8px}
-.player-av{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--ac),var(--a3));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#000;flex-shrink:0}
+/* ══════════════════════════════════════
+   MOBILE OPTIMIZATIONS
+══════════════════════════════════════ */
+@media (max-width:480px){
+  /* Base */
+  html,body{font-size:15px}
+  #root{max-width:100vw}
 
-/* MONEY TAG */
-.money-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:20px;font-weight:800;font-size:14px;background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(251,191,36,.1));border:1px solid rgba(245,158,11,.4);color:var(--ac)}
-</style>
-</head>
-<body>
-<div id="root">
-  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px">
-    <div style="width:52px;height:52px;border-radius:15px;background:linear-gradient(135deg,#f59e0b,#06b6d4);display:flex;align-items:center;justify-content:center;font-size:26px;animation:glow 2s ease-in-out infinite">📚</div>
-    <p style="color:var(--mu);font-size:13px;font-weight:600;letter-spacing:1px">LOADING TEST 11...</p>
-  </div>
-</div>
+  /* Page padding */
+  .page{padding:66px 12px 76px}
 
-<script>
+  /* Cards */
+  .card{border-radius:12px}
+  .cp{padding:13px}
+
+  /* Typography */
+  h1{font-size:28px!important}
+  h2{font-size:18px!important}
+
+  /* Inputs - 16px prevents iOS zoom */
+  .inp{font-size:16px!important;padding:12px 14px}
+  input,select,textarea{font-size:16px!important}
+
+  /* Buttons */
+  .btn{padding:13px 16px;font-size:14px}
+  .btn-sm{padding:8px 13px;font-size:13px}
+  .btn-xs{padding:5px 10px;font-size:11px}
+
+  /* Bottom nav */
+  .bottomnav{height:60px;padding:4px 2px 8px}
+  .bni{font-size:9px}
+  .bni .ic{font-size:19px}
+
+  /* Top nav */
+  .topnav{height:54px;padding:0 12px}
+
+  /* Grid */
+  .sg2{grid-template-columns:1fr 1fr;gap:8px}
+  .sg3{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .sb{padding:11px 8px}
+
+  /* Exam */
+  .opt{padding:10px 11px;gap:10px;border-radius:11px}
+  .opt-lt{width:30px;height:30px;font-size:12px}
+  .pal{grid-template-columns:repeat(7,1fr);gap:4px}
+  .pb{font-size:10px;border-radius:6px}
+
+  /* Badges */
+  .badge{font-size:10px;padding:2px 7px}
+
+  /* Stats */
+  .sb div:first-child{font-size:14px!important}
+  .sb div:last-child{font-size:9px!important}
+
+  /* Room code */
+  .room-code{font-size:24px;letter-spaci
 // ══════════════════════════════════════════════════════════════
 //  TEST 11 — Complete App (Vanilla JS)
 //  No React/Babel needed — pure JS + Firebase Firestore
@@ -200,15 +238,21 @@ button{cursor:pointer;background:none;color:inherit}
 // ══════════════════════════════════════════════════════
 const ADMIN_PHONE      = "8667678910";     // Velprakash - admin number
 const ADMIN_UPI        = "yourname@upi";   // ← YOUR UPI ID (backup)
+// Dynamic UPI getter - uses saved setting if available
+function getAdminUPI() { return LS.g('admin_upi','') || ADMIN_UPI; }
 const RAZORPAY_KEY_ID  = "rzp_test_XXXXXXXXXXXXXXXX"; // ← From Razorpay Dashboard (use rzp_live_ for production)
 const SHEET_URL        = "";               // ← Google Apps Script URL for Sheets tracking
 const SUB_FEE          = 11;   // ₹11/month subscription
 const ROOM_FEE         = 11;   // ₹11 room entry
-const MAX_MEMBERS      = 11;   // 11 members max per room
-const WINNER_PCT       = 0.65; // 65% to winner
-const CREATOR_PCT      = 0.15; // 15% to room creator
-const ADMIN_PCT        = 0.20; // 20% to admin
-const GROQ_KEY         = "";   // free from console.groq.com
+// Prize structure: 11 players × ₹11 = ₹121 pool
+// 1st: ₹55, 2nd: ₹33, 3rd: ₹11, Admin: ₹22 (remaining)
+const PRIZE_1ST        = 55;   // 1st place prize
+const PRIZE_2ND        = 33;   // 2nd place prize
+const PRIZE_3RD        = 11;   // 3rd place prize
+const ADMIN_CUT        = 22;   // admin gets ₹22 (₹121 - ₹55 - ₹33 - ₹11)
+const MAX_MEMBERS      = 11;   // exactly 11 players
+const OPENROUTER_KEY   = "";   // free from openrouter.ai — set in Admin → Settings
+const OR_MODEL         = "google/gemma-3-12b-it:free"; // free model
 
 // ─── TNPSC 2019 QUESTIONS ────────────────────────────────────
 const TNPSC_2019 = [{"id": 1, "q": "Match List I and List II — Planets and Number of natural satellites: Mars, Jupiter, Saturn, Uranus with 60, 27, 63, 2 satellites", "opts": ["(a)1 (b)2 (c)3 (d)4", "(a)4 (b)3 (c)1 (d)2", "(a)1 (b)4 (c)2 (d)3", "(a)4 (b)1 (c)3 (d)2"], "ans": 1, "topic": "Science", "chapter": "Solar System", "diff": "Medium", "exp": "Mars has 2, Jupiter has 63, Saturn has 27, Uranus has 27 natural satellites. Answer is (a)4 (b)3 (c)1 (d)2.", "con": "Planets and Moons"}, {"id": 2, "q": "The compound used in breath analysis test for drunken driving is", "opts": ["K₂Cr₂O₇", "KI", "KMnO₄", "CuSO₄"], "ans": 0, "topic": "Science", "chapter": "Chemistry", "diff": "Medium", "exp": "K₂Cr₂O₇ (Potassium dichromate) is used in breath analysis for detecting alcohol. It turns green when it oxidises ethanol.", "con": "Chemical Analysis"}, {"id": 3, "q": "Which Metro Rail Corporation has started the initiative to become the World's first 100% solar-powered metro?", "opts": ["Jaipur Metro Rail Corporation Ltd.", "Gujarat Metro Rail Corporation Ltd.", "Delhi Metro Rail Corporation Ltd.", "Chennai Metro Rail Corporation Ltd."], "ans": 2, "topic": "Current Affairs", "chapter": "Environment", "diff": "Medium", "exp": "Delhi Metro Rail Corporation Ltd. started the initiative to become the world's first 100% solar-powered metro.", "con": "Renewable Energy"}, {"id": 4, "q": "As per G-20 surveillance note, India's economy is to grow at _______ in the year 2020.", "opts": ["6.5%", "5.5%", "7.5%", "8.5%"], "ans": 2, "topic": "Economics", "chapter": "Indian Economy", "diff": "Medium", "exp": "According to G-20 surveillance note, India's economy was projected to grow at 7.5% in 2020.", "con": "Economic Growth"}, {"id": 5, "q": "In the year 1951, Population growth rate is called", "opts": ["Year of Great Divide", "Year of Population Explosion", "Year of Population", "Year of Small Divide"], "ans": 3, "topic": "Economics", "chapter": "Population", "diff": "Medium", "exp": "1951 is called 'Year of Small Divide' in terms of population growth rate in India.", "con": "Population Studies"}, {"id": 6, "q": "In which desert is Noor Complex located?", "opts": ["Sahara Desert", "Thar Desert", "Kalhari Desert", "Gopi Desert"], "ans": 0, "topic": "Geography", "chapter": "World Geography", "diff": "Medium", "exp": "Noor Complex, one of the world's largest solar power plants, is located in the Sahara Desert in Morocco.", "con": "World Geography"}, {"id": 7, "q": "Which of the following statement(s) is/are correct? 1. In 2019, World Environment Day was Celebrated in China. 2. The Theme for the World Environment Day is Air Pollution.", "opts": ["1 and 2 are true", "1 is true, 2 is false", "1 and 2 are false", "2 is true, 1 is false"], "ans": 0, "topic": "Current Affairs", "chapter": "Environment", "diff": "Medium", "exp": "Both statements are correct. World Environment Day 2019 was celebrated in China and the theme was 'Air Pollution'.", "con": "World Environment Day"}, {"id": 8, "q": "The objective of Jandhan Yojana is", "opts": ["Financial inclusion", "Reducing regional disparities", "Social exclusion", "Population control"], "ans": 0, "topic": "Economics", "chapter": "Government Schemes", "diff": "Easy", "exp": "Jan Dhan Yojana's primary objective is financial inclusion — providing banking services to the unbanked population.", "con": "Government Schemes"}, {"id": 9, "q": "France has _______ party system.", "opts": ["Single party", "Biparty", "Multi party", "None"], "ans": 2, "topic": "Polity", "chapter": "World Politics", "diff": "Easy", "exp": "France has a Multi party system with many political parties participating in elections.", "con": "Political Systems"}, {"id": 10, "q": "Which water conservation campaign has been recently launched by the Central Government?", "opts": ["Jal Bachav Abhiyan", "Jal Tarang Abhiyan", "Jal Suraksha Abhiyan", "Jal Shakthi Abhiyan"], "ans": 3, "topic": "Current Affairs", "chapter": "Government Schemes", "diff": "Easy", "exp": "Jal Shakthi Abhiyan was launched by the Central Government for water conservation and rainwater harvesting.", "con": "Water Conservation"}, {"id": 11, "q": "The major port along the West Coast", "opts": ["Kandla", "Chennai", "Paradip", "Kolkata"], "ans": 0, "topic": "Geography", "chapter": "Indian Ports", "diff": "Easy", "exp": "Kandla (now Deendayal Port) is the major port along the West Coast of India in Gujarat.", "con": "Indian Ports"}, {"id": 12, "q": "In lower organisms sometimes the entire mature organisms do not form gametes but they themselves behave as gametes and the fusion of such mature individuals is known as", "opts": ["Anisogamy", "Merogamy", "Paedogamy", "Hologamy"], "ans": 3, "topic": "Science", "chapter": "Biology - Reproduction", "diff": "Hard", "exp": "Hologamy is when entire mature organisms behave as gametes and fuse together, seen in lower organisms.", "con": "Types of Gametic Fusion"}, {"id": 13, "q": "Match the following — Place and Leaders of the revolt: Delhi, Central India, Lucknow, Kanpur with Bhadur Shah II, Tantia Tope, Rani Laxmi Bai, Begum Hazarat Mahal", "opts": ["(a)2 (b)1 (c)3 (d)4", "(a)4 (b)3 (c)1 (d)2", "(a)1 (b)3 (c)4 (d)2", "(a)4 (b)2 (c)1 (d)3"], "ans": 1, "topic": "History", "chapter": "1857 Revolt", "diff": "Hard", "exp": "Delhi-Bhadur Shah II, Central India-Tantia Tope, Lucknow-Rani Laxmi Bai, Kanpur-Begum Hazarat Mahal.", "con": "1857 Revolt Leaders"}, {"id": 14, "q": "Who was selected as the first Chief Vigilance Commissioner of India?", "opts": ["Sharad Kumar", "B.K. Acharya", "Nittoor Srinivasa Rau", "R.P. Khanna"], "ans": 2, "topic": "Polity", "chapter": "Constitutional Bodies", "diff": "Hard", "exp": "Nittoor Srinivasa Rau was selected as the first Chief Vigilance Commissioner of India.", "con": "Constitutional Offices"}, {"id": 15, "q": "Consumer Protection Act is called as", "opts": ["Tamil Nadu Nugarvor Kavasam", "Consumer's Magna Carta", "World Nugarvor Kavasam", "Valuable Consumer Kavasam"], "ans": 1, "topic": "Polity", "chapter": "Consumer Rights", "diff": "Medium", "exp": "The Consumer Protection Act is called Consumer's Magna Carta as it is a charter of consumer rights.", "con": "Consumer Protection"}, {"id": 16, "q": "In which model of elections, the President and the Vice-President, the members of the Rajya Sabha are elected?", "opts": ["By-Elections", "Direct Election", "Indirect Election", "Mid-Term polls"], "ans": 2, "topic": "Polity", "chapter": "Elections", "diff": "Medium", "exp": "The President, Vice-President and Rajya Sabha members are elected through Indirect Election.", "con": "Electoral System"}, {"id": 17, "q": "Which of the following statements is/are correct? 1. The term of office of the Governor is five years. 2. He can remain in office till his successor enters upon the office of the Governor.", "opts": ["Both 1, 2 are correct", "only 1 is correct", "only 2 is correct", "Both 1, 2 are incorrect"], "ans": 0, "topic": "Polity", "chapter": "Governor", "diff": "Medium", "exp": "Both statements are correct. Governor has a 5-year term but continues until successor takes charge.", "con": "Governor's Office"}, {"id": 18, "q": "Which of the following statements about bases is/are true? I. Base releases hydroxide ions when dissolved in water. III. Zinc reacts with sodium hydroxide to form Sodium Zineate with liberation of hydrogen gas.", "opts": ["I and III", "II only", "III and IV", "IV and II"], "ans": 0, "topic": "Science", "chapter": "Chemistry - Acids & Bases", "diff": "Hard", "exp": "Bases release hydroxide ions (I) and Zinc reacts with NaOH to form Sodium Zincate + H₂ (III) are correct.", "con": "Properties of Bases"}, {"id": 19, "q": "Match List I with List II — Right to equality, Right to Freedom, Right to constitutional remedies, Right to freedom of religion with Articles", "opts": ["(a)2 (b)3 (c)4 (d)1", "(a)1 (b)4 (c)3 (d)2", "(a)3 (b)2 (c)1 (d)4", "(a)4 (b)1 (c)2 (d)3"], "ans": 0, "topic": "Polity", "chapter": "Fundamental Rights", "diff": "Medium", "exp": "Right to Equality-Art 14-18, Right to Freedom-Art 19-22, Constitutional Remedies-Art 32, Freedom of Religion-Art 25-28.", "con": "Fundamental Rights Articles"}, {"id": 20, "q": "From when Women were granted the right to vote in British India?", "opts": ["1920", "1921", "1922", "1923"], "ans": 1, "topic": "History", "chapter": "Freedom Movement", "diff": "Medium", "exp": "Women were granted the right to vote in British India from 1921.", "con": "Women's Rights"}, {"id": 21, "q": "In which year the Staff Selection Board was established in Tamilnadu during the Panagal Ministry?", "opts": ["1916", "1920", "1924", "1927"], "ans": 2, "topic": "History", "chapter": "Tamil Nadu History", "diff": "Hard", "exp": "The Staff Selection Board was established in Tamil Nadu in 1924 during the Panagal Ministry.", "con": "Tamil Nadu Administration"}, {"id": 22, "q": "Match the following religious books: Thembavani, Seerapuranam, Bhagvad Gita, Tripitakas with Hindus, Christians, Buddhists, Muslims", "opts": ["(a)4 (b)3 (c)1 (d)2", "(a)2 (b)1 (c)3 (d)4", "(a)1 (b)3 (c)4 (d)2", "(a)2 (b)4 (c)1 (d)3"], "ans": 3, "topic": "History", "chapter": "Religion", "diff": "Hard", "exp": "Thembavani-Christians, Seerapuranam-Muslims, Bhagvad Gita-Hindus, Tripitakas-Buddhists.", "con": "Religious Texts"}, {"id": 23, "q": "_______ was discovered in 1922 under the Supervision of R.D. Bannerji.", "opts": ["Mohenjadaro", "Harappa", "Lothal", "Kalibangan"], "ans": 0, "topic": "History", "chapter": "Ancient India", "diff": "Medium", "exp": "Mohenjodaro was discovered in 1922 under the supervision of R.D. Banerji near the Indus River.", "con": "Indus Valley Civilization"}, {"id": 24, "q": "Who was called as 'the father of Modern Currency' during the Mughal period?", "opts": ["Babur", "Akbar", "Shershah", "Shah Jahan"], "ans": 2, "topic": "History", "chapter": "Mughal Empire", "diff": "Medium", "exp": "Shershah Suri is called the 'father of Modern Currency' for introducing the silver rupee during the Mughal period.", "con": "Mughal Currency"}, {"id": 25, "q": "In the year 2017-18 The Per Capita Income (GSDP) of Tamil Nadu was", "opts": ["$1670", "$2200", "$1443", "$2175"], "ans": 1, "topic": "Economics", "chapter": "Tamil Nadu Economy", "diff": "Hard", "exp": "The Per Capita Income (GSDP) of Tamil Nadu in 2017-18 was $2200.", "con": "Tamil Nadu Economy"}, {"id": 26, "q": "The Utkal plain is found in _______ state.", "opts": ["Andhrapradesh", "Mumbai", "Odhisha", "Tamil Nadu"], "ans": 2, "topic": "Geography", "chapter": "Indian Geography", "diff": "Easy", "exp": "The Utkal plain is found in Odisha state, named after the historical region of Utkala.", "con": "Indian Plains"}, {"id": 27, "q": "0° longitude and 0° latitude is located in", "opts": ["Central Australia", "Brazil", "Atlantic South and West of Africa", "South pole"], "ans": 2, "topic": "Geography", "chapter": "World Geography", "diff": "Medium", "exp": "The intersection of 0° longitude (Prime Meridian) and 0° latitude (Equator) is located in the Atlantic Ocean, South and West of Africa.", "con": "Geographic Coordinates"}, {"id": 28, "q": "Swine Flu is caused by", "opts": ["Rubella virus", "Rhino virus", "H1N1 virus", "Alpha virus"], "ans": 2, "topic": "Science", "chapter": "Biology - Disease", "diff": "Easy", "exp": "Swine Flu is caused by the H1N1 virus (Influenza A virus subtype H1N1).", "con": "Viral Diseases"}, {"id": 29, "q": "The Androgen Binding protein is produced by", "opts": ["Hypothalamus", "Leydig cells", "Testosterone", "Sertoli cells"], "ans": 3, "topic": "Science", "chapter": "Biology - Reproduction", "diff": "Hard", "exp": "Androgen Binding Protein (ABP) is produced by Sertoli cells in the testes to maintain high testosterone levels.", "con": "Male Reproductive System"}, {"id": 30, "q": "Assertion (A): Blood samples are usually taken from the veins rather than artery. Reason (R): Low Pressure in the veins", "opts": ["Both (A) and (R) are true and (R) is the correct explanation of (A)", "(A) is true, (R) is false", "(A) is false, (R) is true", "Both (A) and (R) are true and (R) is not the correct explanation of (A)"], "ans": 0, "topic": "Science", "chapter": "Biology - Circulatory System", "diff": "Hard", "exp": "Blood is taken from veins because they have low pressure making it easier and safer. (R) correctly explains (A).", "con": "Blood Circulation"}, {"id": 31, "q": "Which of the following fact is incorrect about monocotyledonous plants?", "opts": ["Seed has single cotyledon", "Leaves have parallel venation", "Fibrous root system present", "Flowers are pentamerous"], "ans": 3, "topic": "Science", "chapter": "Biology - Botany", "diff": "Medium", "exp": "Monocot flowers are trimerous (parts in multiples of 3), NOT pentamerous. Pentamerous flowers are found in dicots.", "con": "Plant Classification"}, {"id": 32, "q": "Which of the following fact is incorrect about mitosis?", "opts": ["It occurs only in body cells", "Mitosis has two divisions", "Maintenance of 2n chromosomes", "Two diploid cells are produced"], "ans": 1, "topic": "Science", "chapter": "Biology - Cell Division", "diff": "Hard", "exp": "Mitosis has only ONE division (unlike meiosis which has two). It produces two identical diploid cells.", "con": "Cell Division"}, {"id": 33, "q": "Which of the following are wrong? I. Na₂CO₃ is used in softening hard water. II. NaHCO₃ is used for bleaching cotton and linen. IV. CaOCl₂ is used in making of baking powder.", "opts": ["I and IV", "II and IV", "I and III", "III and IV"], "ans": 1, "topic": "Science", "chapter": "Chemistry - Compounds", "diff": "Hard", "exp": "NaHCO₃ is not used for bleaching (that's NaOCl/bleaching powder). CaOCl₂ is bleaching powder not baking powder (NaHCO₃ is). II and IV are wrong.", "con": "Chemical Applications"}, {"id": 34, "q": "Focal length of a convex mirror whose radius of curvature 40 cm is", "opts": ["20 cm", "40 cm", "80 cm", "infinity"], "ans": 0, "topic": "Science", "chapter": "Physics - Optics", "diff": "Medium", "exp": "For a convex mirror, focal length = Radius of curvature / 2 = 40/2 = 20 cm.", "con": "Mirror Formula"}, {"id": 35, "q": "A man has to exert a force of 10 N at the edge of a door to push it open. How much force will the man have to exert if he pushes the centre of the door?", "opts": ["10 N", "5 N", "15 N", "20 N"], "ans": 3, "topic": "Science", "chapter": "Physics - Mechanics", "diff": "Medium", "exp": "Torque = Force × distance. At edge: T = 10×L. At centre: T = F×(L/2). So F = 20N for same torque.", "con": "Torque and Moments"}, {"id": 36, "q": "The first battery was made by", "opts": ["Joule", "George Simon Ohm", "Alessandro Volta", "Newton"], "ans": 2, "topic": "Science", "chapter": "Physics - Electricity", "diff": "Easy", "exp": "Alessandro Volta invented the first electric battery (Voltaic pile) in 1800. The unit Volt is named after him.", "con": "History of Electricity"}, {"id": 37, "q": "Kamaraj served as the Chief Minister of Tamil Nadu for", "opts": ["7 years", "8 years", "9 years", "10 years"], "ans": 2, "topic": "History", "chapter": "Tamil Nadu History", "diff": "Easy", "exp": "K. Kamaraj served as Chief Minister of Tamil Nadu for 9 years (1954-1963).", "con": "Tamil Nadu CM History"}, {"id": 38, "q": "GST came into effect on _______ in India.", "opts": ["29th March 2017", "1st July 2017", "29th March 2016", "1st July 2016"], "ans": 1, "topic": "Economics", "chapter": "Indian Economy", "diff": "Easy", "exp": "GST (Goods and Services Tax) came into effect on 1st July 2017 in India, replacing multiple indirect taxes.", "con": "GST Implementation"}, {"id": 39, "q": "Mutant variety of wheat is", "opts": ["Oenothera Lamarkiana", "Castor Aruna", "Sharbati Sonora", "Mirabilis Jalaba"], "ans": 2, "topic": "Science", "chapter": "Biology - Agriculture", "diff": "Hard", "exp": "Sharbati Sonora is a mutant variety of wheat developed through mutation breeding in India.", "con": "Crop Varieties"}, {"id": 40, "q": "Which of the following statement is not correct about Indus Valley Civilization?", "opts": ["Indus Valley people used burnt bricks", "This civilization flourished in India about 4700 years ago", "Harappa in Sindhi means 'Buried City'", "Hundreds of square seals were discovered here"], "ans": 3, "topic": "History", "chapter": "Ancient India", "diff": "Medium", "exp": "Thousands of rectangular/square seals were discovered at Indus Valley sites, but the number 'hundreds' is incorrect — it was thousands.", "con": "Indus Valley Civilization"}, {"id": 41, "q": "Which article of the Indian Constitution talks about 'Taxes levied and collected by the Union but assigned to the States'?", "opts": ["Art. 201", "Art. 269", "Art. 272", "Art. 268"], "ans": 1, "topic": "Polity", "chapter": "Finance", "diff": "Hard", "exp": "Article 269 of the Indian Constitution deals with taxes levied and collected by the Union but assigned to the States.", "con": "Constitutional Finance"}, {"id": 42, "q": "Baripada: I. A hamlet that Conserves Forest, promotes growth. II. Located in Maharastra-Gujarat border.", "opts": ["I is true but II is false", "I and II is true", "I is false but II is true", "I and II are false"], "ans": 1, "topic": "Current Affairs", "chapter": "Environment", "diff": "Hard", "exp": "Both are true. Baripada is a village that conserves forests and is located on the Maharashtra-Gujarat border.", "con": "Environmental Villages"}, {"id": 43, "q": "Chennai becomes the _______ Indian city with metro railway.", "opts": ["first", "fifth", "sixth", "second"], "ans": 2, "topic": "Current Affairs", "chapter": "Infrastructure", "diff": "Medium", "exp": "Chennai became the 6th Indian city to have metro railway service.", "con": "Metro Cities India"}, {"id": 44, "q": "When was Swachh Bharat Abhiyan was announced by the Prime Minister?", "opts": ["2 Oct 2013", "15 August 2014", "2 Oct 2015", "2 Oct 2016"], "ans": 1, "topic": "Current Affairs", "chapter": "Government Schemes", "diff": "Easy", "exp": "Swachh Bharat Abhiyan was announced by Prime Minister Modi on 15 August 2014 and launched on 2 October 2014.", "con": "Government Schemes"}, {"id": 45, "q": "How many political parties participated in the 1951 First Indian General Election?", "opts": ["54", "64", "74", "84"], "ans": 0, "topic": "Polity", "chapter": "Elections", "diff": "Medium", "exp": "54 political parties participated in the first Indian General Election held in 1951-52.", "con": "Indian Elections History"}, {"id": 46, "q": "India's central meridian passes through", "opts": ["Ahmedabad", "Mirzapur", "Greenwich", "Gujarat"], "ans": 1, "topic": "Geography", "chapter": "Indian Geography", "diff": "Medium", "exp": "India's Standard Time (IST) is based on 82.5°E longitude which passes through Mirzapur (Allahabad), Uttar Pradesh.", "con": "India Standard Time"}, {"id": 47, "q": "Who is the first Indian transgender to be honoured with 'Padmashri'?", "opts": ["Satyasree Sharmila", "Prithika Yashini", "Narthaki Natraj", "Tamilselvi"], "ans": 2, "topic": "Current Affairs", "chapter": "Awards", "diff": "Medium", "exp": "Narthaki Natraj, a classical Bharatanatyam dancer, became the first transgender to receive the Padma Shri award.", "con": "Padma Awards"}, {"id": 48, "q": "During 1857, the peasants had to pay heavy taxes in the form of", "opts": ["Land tax", "Customs duty", "Revenue tax", "Service tax"], "ans": 0, "topic": "History", "chapter": "1857 Revolt", "diff": "Easy", "exp": "During 1857, peasants had to pay heavy Land tax imposed by the British which was a major cause of the revolt.", "con": "Causes of 1857 Revolt"}, {"id": 49, "q": "Home rule league in Bombay was formed by", "opts": ["Bharathiar", "Mrs. Annie Besant", "Nehru", "Tilak"], "ans": 3, "topic": "History", "chapter": "Freedom Movement", "diff": "Medium", "exp": "Bal Gangadhar Tilak formed the Home Rule League in Bombay in 1916. Annie Besant formed a separate one in Madras.", "con": "Home Rule Movement"}, {"id": 50, "q": "The Central Vigilance Commission was established on the recommendation of", "opts": ["Administrative Reforms Commission", "National Development Council", "Santhanam Committee on Prevention of Corruption", "Law Commission"], "ans": 2, "topic": "Polity", "chapter": "Constitutional Bodies", "diff": "Hard", "exp": "CVC was established in 1964 on the recommendations of the Santhanam Committee on Prevention of Corruption.", "con": "Anti-Corruption Bodies"}, {"id": 51, "q": "The Chief Justice and other Judges of the Indian Supreme Court are appointed by", "opts": ["The President", "The Attorney General", "The Governor", "The Prime Minister"], "ans": 0, "topic": "Polity", "chapter": "Judiciary", "diff": "Easy", "exp": "The Chief Justice and other Judges of the Supreme Court of India are appointed by the President of India.", "con": "Judicial Appointments"}, {"id": 52, "q": "Which Amendment has made provisions related to 'Nagar Palikas' (Urban Local Governments)?", "opts": ["73rd Amendment Act", "75th Amendment Act", "74th Amendment Act", "70th Amendment Act"], "ans": 2, "topic": "Polity", "chapter": "Local Government", "diff": "Medium", "exp": "The 74th Constitutional Amendment Act (1992) made provisions for Nagar Palikas (Urban Local Bodies).", "con": "Constitutional Amendments"}, {"id": 53, "q": "Which Union Territory has its own elected Legislative Assembly?", "opts": ["Chandigarh", "Lakshadweep", "Puducherry", "Daman and Diu"], "ans": 2, "topic": "Polity", "chapter": "Union Territories", "diff": "Easy", "exp": "Puducherry (Pondicherry) has its own elected Legislative Assembly among the Union Territories of India.", "con": "Union Territories"}, {"id": 54, "q": "In Lok Sabha, how many members are elected directly by the people?", "opts": ["453", "354", "543", "545"], "ans": 2, "topic": "Polity", "chapter": "Parliament", "diff": "Medium", "exp": "543 members of Lok Sabha are directly elected by the people of India through universal adult franchise.", "con": "Lok Sabha"}, {"id": 55, "q": "Which right has been abolished by the 44th Amendment Act, 1978?", "opts": ["Right to freedom of religion", "Right against Exploitation", "Right to Property", "Right to Constitutional remedies"], "ans": 2, "topic": "Polity", "chapter": "Fundamental Rights", "diff": "Medium", "exp": "The 44th Constitutional Amendment Act (1978) abolished the Right to Property as a Fundamental Right.", "con": "Fundamental Rights Amendment"}, {"id": 56, "q": "'Right to clean water' is a fundamental right, under the Indian Constitution,", "opts": ["Article 12", "Article 21", "Article 31", "Article 41"], "ans": 1, "topic": "Polity", "chapter": "Fundamental Rights", "diff": "Easy", "exp": "Right to clean water is interpreted as part of Article 21 (Right to Life) by the Supreme Court of India.", "con": "Article 21"}, {"id": 57, "q": "'The Detroit of Asia' is", "opts": ["Hyderabad", "Chennai", "Mumbai", "Surat"], "ans": 1, "topic": "Geography", "chapter": "Indian Cities", "diff": "Easy", "exp": "Chennai is called 'The Detroit of Asia' due to its large concentration of automobile industries.", "con": "Indian City Nicknames"}, {"id": 58, "q": "The education system in India consists of primarily _______ levels.", "opts": ["Eight", "Six", "Four", "Two"], "ans": 1, "topic": "Current Affairs", "chapter": "Education", "diff": "Easy", "exp": "The education system in India primarily consists of Six levels: Pre-primary, Primary, Upper Primary, Secondary, Senior Secondary, and Higher Education.", "con": "Indian Education System"}, {"id": 59, "q": "Who provided the Vimana of the famous Nataraja temple at Chidambaram with a golden roof?", "opts": ["Raja Rajan – I", "Parantaka – I", "Rajendira – I", "Narasimhavarman – I"], "ans": 1, "topic": "History", "chapter": "Tamil History", "diff": "Hard", "exp": "Parantaka I (907-955 CE) provided the Vimana (tower) of the famous Nataraja temple at Chidambaram with a golden roof.", "con": "Chola Dynasty"}, {"id": 60, "q": "Who was called 'Madurai Kondan'?", "opts": ["Aditya – I", "Rajarajan – I", "Raja Raja – II", "Parantaka – I"], "ans": 3, "topic": "History", "chapter": "Tamil History", "diff": "Medium", "exp": "Parantaka I was called 'Madurai Kondan' meaning 'Conqueror of Madurai' after his victory over the Pandya kingdom.", "con": "Chola Kings Titles"}, {"id": 61, "q": "Who was the son of Simhavishnu?", "opts": ["Narasimha Varman", "Mahendra Varman–I", "Parameswar Varman", "Nandivarman"], "ans": 1, "topic": "History", "chapter": "Tamil History", "diff": "Hard", "exp": "Mahendra Varman I was the son of Simhavishnu, the founder of the Pallava dynasty's imperial line.", "con": "Pallava Dynasty"}, {"id": 62, "q": "Headquarter of West Central Railway", "opts": ["Mumbai", "Hubli", "New Delhi", "Jabalpur"], "ans": 3, "topic": "Geography", "chapter": "Indian Railways", "diff": "Medium", "exp": "The Headquarters of West Central Railway zone is located in Jabalpur, Madhya Pradesh.", "con": "Railway Zones"}, {"id": 63, "q": "Which of the following is correctly matched — Brahmaputra originates from Lake Manasarovar?", "opts": ["I (Indus-Gangothri)", "II (Brahmaputra-Lake Manasarovar)", "III (Godavari-Bettul)", "IV (Mahanadi-Agasthiyar Hills)"], "ans": 1, "topic": "Geography", "chapter": "Indian Rivers", "diff": "Medium", "exp": "Brahmaputra originates from the Angsi glacier near Lake Manasarovar in Tibet. This is the correctly matched pair.", "con": "River Origins"}, {"id": 64, "q": "Which of the following facts are correct about prokaryotic cells? I. Prominent nucleus is absent. IV. Enveloped cell organelles are absent.", "opts": ["I and II are correct", "I and IV are correct", "II and III are correct", "III and IV are correct"], "ans": 1, "topic": "Science", "chapter": "Biology - Cell Biology", "diff": "Hard", "exp": "Prokaryotes lack a prominent (membrane-bound) nucleus (I) and lack membrane-bound organelles (IV). I and IV are correct.", "con": "Prokaryotic Cells"}, {"id": 65, "q": "Which of the following is correct? Respiratory Quotient = Volume of CO₂ liberated / Volume of O₂ consumed", "opts": ["Respiratory Quotient = CO₂ liberated/O₂ consumed", "Respiratory Quotient = O₂ liberated/CO₂ consumed", "Respiratory Quotient = O₂ consumed/CO₂ liberated", "Respiratory Quotient = CO₂ consumed/O₂ liberated"], "ans": 0, "topic": "Science", "chapter": "Biology - Respiration", "diff": "Medium", "exp": "Respiratory Quotient (RQ) = Volume of CO₂ liberated / Volume of O₂ consumed. RQ of glucose is 1.", "con": "Respiratory Quotient"}, {"id": 66, "q": "The reaction which takes place at cathode of an electrochemical cell is", "opts": ["oxidation", "neutralisation", "reduction", "substitution reaction"], "ans": 2, "topic": "Science", "chapter": "Chemistry - Electrochemistry", "diff": "Medium", "exp": "At cathode (negative electrode), reduction takes place — gain of electrons. At anode, oxidation takes place.", "con": "Electrochemical Cells"}, {"id": 67, "q": "An example of commonly used Insecticide is", "opts": ["Bordeaux mixture", "2,4-Dichloro phenoxy acetic acid", "Dichloro diphenyl trichloro ethane", "Arsenic"], "ans": 2, "topic": "Science", "chapter": "Chemistry - Agriculture", "diff": "Medium", "exp": "DDT (Dichloro diphenyl trichloro ethane) is a commonly used insecticide, though now banned in many countries.", "con": "Pesticides and Insecticides"}, {"id": 68, "q": "Match elements with Latin names: Lead-Plumbum, Antimony-Stibium, Tin-Stannum, Potassium-Kalium", "opts": ["(a)1 (b)3 (c)2 (d)4", "(a)1 (b)2 (c)3 (d)4", "(a)2 (b)1 (c)4 (d)3", "(a)4 (b)1 (c)2 (d)3"], "ans": 2, "topic": "Science", "chapter": "Chemistry - Elements", "diff": "Hard", "exp": "Lead-Plumbum(2), Antimony-Stibium(1), Tin-Stannum(4), Potassium-Kalium(3). Answer: (a)2 (b)1 (c)4 (d)3.", "con": "Elements and Latin Names"}, {"id": 69, "q": "If the focal length of a concave lens is 2 m, then the power of the lens is", "opts": ["2 dioptre", "1 dioptre", "0.5 dioptre", "-0.5 dioptre"], "ans": 3, "topic": "Science", "chapter": "Physics - Optics", "diff": "Medium", "exp": "Power = 1/focal length. For concave lens f = -2m. P = 1/(-2) = -0.5 dioptre (negative for concave lens).", "con": "Power of Lens"}, {"id": 70, "q": "The first state to be created on Linguistic basis was", "opts": ["Kashmir", "Tamilnadu", "Karnataka", "Andhra"], "ans": 3, "topic": "History", "chapter": "Indian States", "diff": "Easy", "exp": "Andhra Pradesh was the first state to be created on linguistic basis in 1953, following the Telugu-speaking people's demand.", "con": "State Reorganization"}];
@@ -744,8 +788,16 @@ function saveRoom(room){ const all=getRooms(); const i=all.findIndex(r=>r.code==
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
 
 function prizePool(room) {
-  const pool=room.pool||0;
-  return { pool, winner:Math.floor(pool*WINNER_PCT), creator:Math.floor(pool*CREATOR_PCT), admin:pool-Math.floor(pool*WINNER_PCT)-Math.floor(pool*CREATOR_PCT) };
+  const pool = room.pool || 0;
+  return {
+    pool,
+    first:  PRIZE_1ST,          // 1st place: ₹55
+    second: PRIZE_2ND,          // 2nd place: ₹33
+    third:  PRIZE_3RD,          // 3rd place: ₹11
+    admin:  pool - PRIZE_1ST - PRIZE_2ND - PRIZE_3RD,  // admin gets rest
+    winner: PRIZE_1ST,          // alias for backwards compatibility
+    creator: 0,                 // no separate creator prize
+  };
 }
 
 // ─── TEST DB ──────────────────────────────────────────────────
@@ -764,6 +816,34 @@ function saveResult(r){ const all=[r,...getResults()].slice(0,100); LS.s('result
 function fmtTime(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 function shuffle(a) { const b=[...a]; for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];} return b; }
 function avatar(name) { return (name||'?')[0].toUpperCase(); }
+// ── LANGUAGE DETECTION ──────────────────────────────────
+function detectTextLang(text) {
+  if (!text) return 'en';
+  const tamilChars = (text.match(/[஀-௿]/g) || []).length;
+  const total = text.replace(/\s/g,'').length;
+  if (total === 0) return 'en';
+  const ratio = tamilChars / total;
+  if (ratio > 0.3) return 'ta';   // >30% Tamil chars = Tamil
+  if (ratio > 0.05) return 'both'; // mixed
+  return 'en';
+}
+
+function detectTestLanguages(qs) {
+  const langs = new Set();
+  (qs||[]).forEach(q => {
+    const l = detectTextLang(q.q);
+    if (l === 'ta') langs.add('ta');
+    else if (l === 'both') { langs.add('ta'); langs.add('en'); }
+    else langs.add('en');
+  });
+  if (langs.size === 0) return ['en'];
+  return [...langs];
+}
+
+function langLabel(code) {
+  return code === 'ta' ? '🇮🇳 Tamil' : '🌐 English';
+}
+
 function fmtDate(d)  { return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
 
 // ══════════════════════════════════════════════════════════════
@@ -1014,6 +1094,7 @@ function pageHome() {
         {i:'🔁',l:'Practice',p:'practice',active:sub},
         {i:'💰',l:'Subscribe',p:'subscribe',active:true,special:!sub},
         {i:'👤',l:'Profile',p:'profile',active:true},
+          {i:'📖',l:'Help',p:'manual',active:true},
       ].map(b=>`
         <button onclick="go('${b.p}')" class="btn btn-navy" style="flex-direction:column;gap:6px;padding:16px 10px;height:auto${b.special?';border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.08)':''}">
           <span style="font-size:24px">${b.i}</span>
@@ -1034,56 +1115,83 @@ function pageHome() {
 
 // ─── TESTS ────────────────────────────────────────────────────
 function pageTests() {
-  const sub=isSubscribed(S.user?.phone);
-  const tests=getTests();
+  const tests = getTests();
   return `
-  ${topNav('Tests',true)}
+  ${topNav('Tests', true)}
   <div class="page">
-    ${!sub?`<div class="card card-gold cp" style="margin-bottom:16px">
-      <p style="font-weight:700;margin-bottom:6px">🔒 Subscription Required</p>
-      <p style="font-size:13px;color:var(--mu);margin-bottom:12px">Subscribe for ₹${SUB_FEE}/month to access all tests</p>
-      <button class="btn btn-gold btn-sm" style="width:auto" onclick="go('subscribe')">Subscribe Now →</button>
-    </div>`:''}
-    ${tests.map(t=>`
-      <div class="card" style="margin-bottom:12px;${!sub&&!t.builtIn?'opacity:.5':''}">
+    <div style="padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);margin-bottom:14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">✅</span>
+      <div>
+        <p style="font-weight:700;font-size:13px;color:var(--gn)">All tests free — you've already paid for access!</p>
+        <p style="font-size:11px;color:var(--mu)">Login subscription covers all tests. Pay only for Game Rooms & AI questions from your own material.</p>
+      </div>
+    </div>
+    ${tests.map(t=>{
+      const langs = detectTestLanguages(t.qs||[]);
+      const dur   = t.qs?.length || t.dur || 10;  // 1 min per question
+      return `
+      <div class="card" style="margin-bottom:12px;cursor:pointer" onclick="go('test_intro',{testId:'${t.id}'})">
         <div style="height:3px;background:linear-gradient(90deg,var(--ac),var(--a3))"></div>
         <div class="cp">
           <p style="font-weight:700;font-size:15px;margin-bottom:5px">${t.name}</p>
           <p style="font-size:12px;color:var(--mu);margin-bottom:10px">${t.subject||'General Studies'}</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
             <span class="badge b-blue">❓ ${t.qs?.length||0} Qs</span>
-            <span class="badge b-gray">⏱ ${t.dur}m</span>
+            <span class="badge b-gray">⏱ ${dur} min</span>
             <span class="badge b-${t.diff==='Hard'?'red':t.diff==='Easy'?'green':'gold'}">${t.diff||'Mixed'}</span>
             ${t.builtIn?'<span class="badge b-purple">Official</span>':''}
+            ${langs.includes('ta')&&langs.includes('en')?'<span class="badge b-gold">🇮🇳+🌐 Bilingual</span>':langs.includes('ta')?'<span class="badge b-gold">🇮🇳 Tamil</span>':'<span class="badge b-blue">🌐 English</span>'}
           </div>
-          <button class="btn btn-gold" style="font-size:14px" onclick="go('test_intro',{testId:'${t.id}'})" ${!sub?'disabled':''}>
-            ${sub?'Start Test →':'🔒 Subscribe to Access'}
+          <button class="btn btn-gold" style="font-size:14px" onclick="event.stopPropagation();go('test_intro',{testId:'${t.id}'})">
+            Start Test →
           </button>
         </div>
-      </div>`).join('')}
+      </div>`}).join('')}
   </div>
   ${bottomNav('tests')}`;
 }
 
 // ─── TEST INTRO ───────────────────────────────────────────────
 function pageTestIntro() {
-  const testId=S.data?.testId;
-  const test=getTests().find(t=>t.id===testId);
-  if(!test){go('tests');return'';}
+  const testId = S.data?.testId;
+  const test   = getTests().find(t=>t.id===testId);
+  if (!test) { go('tests'); return ''; }
+
+  // Detect available languages in this test
+  const availLangs = detectTestLanguages(test.qs);
+  const selLang    = S.data?.lang || availLangs[0] || 'en';
+
+  // If language changed, update state and re-render
+  if (S.data?.changeLang) { S.data.changeLang=false; }
+
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--bg)">
     <div style="max-width:400px;width:100%;text-align:center">
       <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--ac),var(--a3));display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px">📝</div>
       <h2 style="font-size:19px;font-weight:900;margin-bottom:6px">${test.name}</h2>
-      <p style="color:var(--mu);font-size:14px;margin-bottom:20px">${test.subject||'General Studies'}</p>
+      <p style="color:var(--mu);font-size:14px;margin-bottom:12px">${test.subject||'General Studies'}</p>
+      ${availLangs.length>1?`
+      <div style="margin-bottom:16px">
+        <p style="font-size:12px;font-weight:700;color:var(--mu);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Question Language</p>
+        <div style="display:flex;gap:8px;justify-content:center">
+          ${availLangs.map(l=>`<button onclick="go('test_intro',{testId:'${testId}',lang:'${l}'})" style="padding:9px 20px;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;background:${selLang===l?'var(--ac)':'var(--s2)'};color:${selLang===l?'#000':'var(--mu)'};border:2px solid ${selLang===l?'var(--ac)':'var(--bd)'};transition:all .2s">${langLabel(l)}</button>`).join('')}
+        </div>
+      </div>`:`
+      <div style="margin-bottom:16px;display:flex;justify-content:center">
+        <span class="badge ${availLangs[0]==='ta'?'b-gold':'b-blue'}" style="font-size:13px;padding:6px 16px">${langLabel(availLangs[0])}</span>
+      </div>`}
       <div class="sg3" style="margin-bottom:20px">
-        ${[{i:'❓',l:'Questions',v:test.qs?.length||0},{i:'⏱',l:'Duration',v:test.dur+'m'},{i:'🏆',l:'Marking',v:'+1/0'}]
+        ${[{i:'❓',l:'Questions',v:test.qs?.length||0},{i:'⏱',l:'Duration',v:(test.qs?.length||test.dur)+' min'},{i:'🏆',l:'Marking',v:'+1/0'}]
           .map(s=>`<div class="sb"><div style="font-size:20px;margin-bottom:4px">${s.i}</div><div style="font-weight:800;font-size:15px">${s.v}</div><div style="font-size:10px;color:var(--mu)">${s.l}</div></div>`).join('')}
       </div>
       <div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:20px;text-align:left">
         <p style="font-size:12px;font-weight:700;color:var(--mu);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Instructions</p>
         ${['Each question = 1 mark. No negative marking.','Timer auto-submits when time ends.','Use palette to jump to any question.','Mark questions for review.']
           .map(i=>`<p style="font-size:12px;color:var(--mu);margin-bottom:4px">• ${i}</p>`).join('')}
+      </div>
+      <div style="padding:10px 14px;border-radius:11px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);margin-bottom:14px;text-align:left">
+        <p style="font-size:12px;font-weight:700;color:var(--ac);margin-bottom:3px">⏱ 1 Minute Per Question</p>
+        <p style="font-size:11px;color:var(--mu)">Practising with strict time builds speed for the real TNPSC exam where time management is critical.</p>
       </div>
       <div style="display:flex;gap:10px">
         <button class="btn btn-ghost" style="flex:0 0 auto;width:auto;padding:14px 18px" onclick="go('tests')">← Back</button>
@@ -1095,9 +1203,21 @@ function pageTestIntro() {
 
 // ─── EXAM ─────────────────────────────────────────────────────
 function startExam(testId) {
-  const test=getTests().find(t=>t.id===testId);
-  if(!test||!test.qs?.length){toast('No questions','error');return;}
-  S.examSession={ test, qs:shuffle([...test.qs]), answers:{}, marked:new Set(), cur:0, timeLeft:test.dur*60, startTime:Date.now() };
+  const test    = getTests().find(t=>t.id===testId);
+  if (!test||!test.qs?.length) { toast('No questions','error'); return; }
+  // Filter questions by selected language if applicable
+  const selLang = S.data?.lang;
+  let qs = [...test.qs];
+  if (selLang && selLang !== 'both') {
+    const filtered = qs.filter(q => {
+      const ql = detectTextLang(q.q);
+      if (selLang === 'ta') return ql === 'ta' || ql === 'both';
+      return ql === 'en' || ql === 'both';
+    });
+    if (filtered.length > 0) qs = filtered;
+  }
+  const durMins = qs.length;  // 1 minute per question
+  S.examSession={ test, qs:shuffle(qs), answers:{}, marked:new Set(), cur:0, timeLeft:durMins*60, startTime:Date.now(), lang:selLang };
   clearInterval(S.examTimer);
   S.examTimer=setInterval(()=>{
     if(!S.examSession){clearInterval(S.examTimer);return;}
@@ -1125,7 +1245,10 @@ function pageExam() {
   <div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;max-width:480px;margin:0 auto">
     <div style="background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0">
       <div style="flex:1"><p style="font-weight:700;font-size:13px">${ss.test.name}</p><p style="font-size:11px;color:var(--mu)">Q ${cur+1}/${N}</p></div>
-      <div id="exam_timer" style="font-family:'DM Mono',monospace;font-weight:900;font-size:18px;padding:6px 12px;border-radius:10px;background:${crit?'rgba(239,68,68,.15)':'var(--s2)'};color:${crit?'var(--rd)':'var(--tx)'}">⏱ ${fmtTime(timeLeft)}</div>
+      <div>
+        <div id="exam_timer" style="font-family:'DM Mono',monospace;font-weight:900;font-size:18px;padding:5px 12px;border-radius:10px;background:${crit?'rgba(239,68,68,.15)':'var(--s2)'};color:${crit?'var(--rd)':'var(--tx)'}">⏱ ${fmtTime(timeLeft)}</div>
+        <p style="font-size:9px;color:var(--mu);text-align:center;margin-top:2px">1 min/Qn</p>
+      </div>
       <button onclick="togglePalette()" style="width:32px;height:32px;border-radius:8px;background:var(--s2);border:1px solid var(--bd);font-size:13px;display:flex;align-items:center;justify-content:center">🔲</button>
     </div>
     <div style="height:3px;background:var(--s2);flex-shrink:0"><div style="height:100%;background:linear-gradient(90deg,var(--ac),var(--a2));width:${(done/N)*100}%;transition:width .3s"></div></div>
@@ -1352,73 +1475,159 @@ function viewOldResult(i){const results=getResults().filter(r=>r.userId===S.user
 function pageSubscribe() {
   const u   = S.user;
   const sub = isSubscribed(u?.phone);
-  const myPays = getPayments().filter(p => p.phone === u?.phone && p.type === 'subscription');
   const uu  = getUsers().find(x => x.phone === u?.phone) || u;
+  const myPays = getPayments().filter(p => p.phone===u?.phone && p.type==='subscription' && p.status==='approved');
 
   if (sub) return `
     ${topNav('Subscription', true)}
-    <div class="page" style="text-align:center;padding-top:80px">
-      <div style="font-size:60px;margin-bottom:14px">✅</div>
-      <h2 style="font-weight:900;font-size:22px;margin-bottom:8px">Subscribed!</h2>
+    <div class="page" style="text-align:center;padding-top:60px">
+      <div style="font-size:64px;margin-bottom:14px">✅</div>
+      <h2 style="font-weight:900;font-size:22px;margin-bottom:8px">Active Subscription!</h2>
       <p style="color:var(--mu);font-size:14px;margin-bottom:20px">You have full access to all tests</p>
-      <div class="card cp" style="display:inline-block;text-align:center;margin-bottom:20px">
-        <p style="font-size:12px;color:var(--mu)">Valid until</p>
-        <p style="font-weight:800;font-size:16px;color:var(--gn)">${uu?.paidUntil ? fmtDate(uu.paidUntil) : 'Active'}</p>
+      <div class="card cp" style="max-width:280px;margin:0 auto 20px;text-align:center">
+        <p style="font-size:12px;color:var(--mu);margin-bottom:4px">Valid until</p>
+        <p style="font-weight:900;font-size:18px;color:var(--gn)">${uu?.paidUntil ? fmtDate(uu.paidUntil) : 'Lifetime'}</p>
+        ${uu?.paidUntil ? `<p style="font-size:11px;color:var(--mu);margin-top:4px">${Math.ceil((new Date(uu.paidUntil)-new Date())/(1000*60*60*24))} days remaining</p>` : ''}
       </div>
-      <button class="btn btn-gold" onclick="go('home')">Go to Tests →</button>
+      <button class="btn btn-gold" style="max-width:240px;margin:0 auto" onclick="go('home')">Go to Tests →</button>
     </div>`;
 
-  const totalPaid = myPays.filter(p => p.status === 'approved').reduce((a,b) => a+b.amount, 0);
+  const rzpReady = RAZORPAY_KEY_ID && !RAZORPAY_KEY_ID.includes('XXXXX');
 
   return `
   ${topNav('Subscribe', true)}
   <div class="page">
-    <!-- Hero pricing card -->
-    <div style="background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(6,182,212,.08));border:1.5px solid rgba(245,158,11,.35);border-radius:18px;padding:24px;text-align:center;margin-bottom:18px">
-      <div style="font-size:44px;margin-bottom:8px">📚</div>
-      <h2 style="font-size:36px;font-weight:900;margin-bottom:4px">₹<span style="font-size:48px">${SUB_FEE}</span><span style="font-size:16px;font-weight:500;color:var(--mu)">/month</span></h2>
-      <p style="color:var(--mu);font-size:14px">Full TEST 11 access — renew every month</p>
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:12px">
-        <span style="font-size:13px;color:rgba(255,255,255,.5)">Secured by</span>
-        <span style="font-size:15px;font-weight:800;color:#3395FF">razorpay</span>
+
+    <!-- Pricing card -->
+    <div style="background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(6,182,212,.08));border:1.5px solid rgba(245,158,11,.4);border-radius:18px;padding:24px;text-align:center;margin-bottom:20px">
+      <div style="font-size:44px;margin-bottom:6px">📚</div>
+      <div style="font-size:42px;font-weight:900;margin-bottom:4px">₹${SUB_FEE}<span style="font-size:16px;font-weight:500;color:var(--mu)">/month</span></div>
+      <p style="color:var(--mu);font-size:13px;margin-bottom:16px">Full access to all TNPSC tests</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+        ${['📝 All Tests','🤖 AI Questions','📊 Analytics','🔁 Practice','🎮 Game Rooms','🏆 Leaderboard'].map(f=>'<span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(255,255,255,.08);color:var(--mu)">'+f+'</span>').join('')}
       </div>
     </div>
 
-    <!-- Features -->
-    <div class="card cp" style="margin-bottom:16px">
-      <p style="font-weight:700;margin-bottom:12px">✨ What you get</p>
-      <div class="sg2">
-        ${['📝 All admin tests','🤖 AI questions','📊 Full analytics','🔁 Practice mode','🔥 Daily challenge','🎮 Game rooms','📱 Mobile app','🏆 Leaderboards'].map(f => `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mu);margin-bottom:6px"><span style="color:var(--gn)">✓</span>${f}</div>`).join('')}
+    <!-- OPTION 1: Razorpay (instant) -->
+    <div class="card" style="margin-bottom:12px;border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.06)">
+      <div class="cp">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(59,130,246,.2);display:flex;align-items:center;justify-content:center;font-size:18px">💳</div>
+          <div>
+            <p style="font-weight:700;font-size:14px">Pay Online <span style="font-size:11px;color:var(--gn);font-weight:600">✓ Instant activation</span></p>
+            <p style="font-size:12px;color:var(--mu)">UPI • GPay • PhonePe • Cards • NetBanking</p>
+          </div>
+        </div>
+        <button class="btn btn-gold" id="rzp_pay_btn" onclick="doSubPayment()" style="font-size:16px">
+          💳 Pay ₹${SUB_FEE} Now
+        </button>
+        ${!rzpReady?'<p style="font-size:11px;color:var(--or);margin-top:8px;text-align:center">⚠️ Admin needs to configure Razorpay key in Settings</p>':'<p style="font-size:11px;color:var(--gn);margin-top:8px;text-align:center">🔒 Secured by Razorpay · Auto-activates on payment</p>'}
+      </div>
+    </div>
+
+    <!-- OPTION 2: Razorpay Payment Link (share link) -->
+    <div class="card" style="margin-bottom:12px;border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.05)">
+      <div class="cp">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,.15);display:flex;align-items:center;justify-content:center;font-size:18px">🔗</div>
+          <div>
+            <p style="font-weight:700;font-size:14px">Payment Link</p>
+            <p style="font-size:12px;color:var(--mu)">Pay via a shared link — works on any app</p>
+          </div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="openPaymentLink()">
+          🔗 Open Payment Link →
+        </button>
+        <p style="font-size:11px;color:var(--mu);margin-top:8px">After paying, come back and tap "I've Paid" below</p>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="go('subscribe',{step:'verify'})">✓ I've Paid via Link</button>
+      </div>
+    </div>
+
+    <!-- OPTION 3: UPI Direct -->
+    <div class="card" style="margin-bottom:20px;border-color:rgba(139,92,246,.3);background:rgba(139,92,246,.05)">
+      <div class="cp">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,.15);display:flex;align-items:center;justify-content:center;font-size:18px">📲</div>
+          <div>
+            <p style="font-weight:700;font-size:14px">Direct UPI</p>
+            <p style="font-size:12px;color:var(--mu)">GPay • PhonePe • Paytm • Any UPI app</p>
+          </div>
+        </div>
+        <!-- UPI ID display with copy -->
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:11px;background:var(--s2);border:1px solid var(--bd);margin-bottom:10px">
+          <div style="flex:1">
+            <p style="font-size:11px;color:var(--mu);margin-bottom:2px">Send ₹${SUB_FEE} to</p>
+            <p style="font-size:16px;font-weight:800;font-family:'DM Mono',monospace;color:var(--ac)">${getAdminUPI()}</p>
+          </div>
+          <button onclick="copyUPI()" style="padding:8px 14px;border-radius:9px;background:var(--ac);color:#000;font-size:12px;font-weight:700;border:none;cursor:pointer">Copy</button>
+        </div>
+        <!-- Open in UPI app -->
+        <button class="btn btn-navy btn-sm" onclick="openUPIApp()" style="margin-bottom:10px">
+          📲 Open UPI App
+        </button>
+        <!-- After paying -->
+        <div id="upi_ref_section" style="display:${S.data?.step==='verify'?'block':'none'}">
+          <div class="ig" style="margin-bottom:10px">
+            <label>Enter UPI Transaction ID</label>
+            <input id="upi_ref_inp" class="inp" placeholder="e.g. 419283746521" style="font-family:'DM Mono',monospace"/>
+            <p style="font-size:11px;color:var(--mu);margin-top:4px">Find in your UPI app → Payment History</p>
+          </div>
+          <button class="btn btn-purple btn-sm" onclick="submitManualSub()">Submit for Approval</button>
+        </div>
+        ${S.data?.step!=='verify'?'<button class="btn btn-ghost btn-sm" onclick="showUPIRef()">✓ I've Paid — Enter Reference</button>':''}
       </div>
     </div>
 
     <!-- Payment history -->
-    ${myPays.length > 0 ? `
-    <div class="card cp" style="margin-bottom:16px">
+    ${myPays.length>0?`<div class="card cp" style="margin-bottom:14px">
       <p style="font-weight:700;margin-bottom:10px">Payment History</p>
-      ${myPays.slice(0,3).map(p => `
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd)">
-          <div><p style="font-size:13px;font-weight:600">${fmtDate(p.createdAt)}</p><p style="font-size:11px;color:var(--mu)">${p.razorpayId||p.upiRef||'—'}</p></div>
-          <div style="text-align:right"><p style="font-weight:700;color:var(--ac)">₹${p.amount}</p><span class="badge ${p.status==='approved'?'b-green':p.status==='pending'?'b-gold':'b-red'}" style="font-size:10px">${p.status}</span></div>
-        </div>`).join('')}
-    </div>` : ''}
+      ${myPays.slice(0,3).map(p=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd)"><div><p style="font-size:13px;font-weight:600">'+fmtDate(p.createdAt)+'</p><p style="font-size:11px;color:var(--mu)">'+(p.razorpayId||p.upiRef||'—')+'</p></div><div style="text-align:right"><p style="font-weight:700;color:var(--ac)">₹'+p.amount+'</p><span class="badge b-green" style="font-size:10px">paid</span></div></div>').join('')}
+    </div>`:''}
 
-    <!-- Pay button -->
-    <button class="btn btn-gold" style="font-size:17px;padding:16px" id="pay_sub_btn" onclick="doSubPayment()">
-      💳 Pay ₹${SUB_FEE} with Razorpay
-    </button>
-    <p style="text-align:center;font-size:12px;color:var(--mu);margin-top:10px">UPI • Cards • NetBanking • Wallets all supported</p>
-
-    <!-- Manual UPI fallback -->
-    <div style="margin-top:20px;padding:14px;border-radius:13px;background:var(--s2);border:1px solid var(--bd)">
-      <p style="font-size:12px;font-weight:700;color:var(--mu);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Manual UPI (if Razorpay unavailable)</p>
-      <p style="font-size:13px;color:var(--mu);margin-bottom:6px">Send ₹${SUB_FEE} to: <strong style="color:var(--ac);font-family:'DM Mono',monospace">${ADMIN_UPI}</strong></p>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input id="manual_upi_ref" class="inp" placeholder="Enter UPI transaction ID" style="flex:1;font-size:13px;font-family:'DM Mono',monospace"/>
-        <button class="btn btn-navy btn-xs" style="flex-shrink:0;padding:0 14px" onclick="submitManualSub()">Submit</button>
-      </div>
-    </div>
   </div>`;
+}
+
+
+// ── RAZORPAY PAYMENT LINK ───────────────────────────────────
+// Admin creates this once in Razorpay dashboard and pastes it here
+const RAZORPAY_PAYMENT_LINK = ""; // ← Paste your Razorpay payment link e.g. https://rzp.io/l/test11sub
+
+function openPaymentLink() {
+  const link = RAZORPAY_PAYMENT_LINK || LS.g('rzp_link','');
+  if (!link) {
+    toast('Payment link not set. Use UPI or card payment above.','warning');
+    return;
+  }
+  // Open in same tab so user can return
+  window.open(link, '_blank');
+}
+
+function openUPIApp() {
+  // Deep link to UPI apps
+  const amount   = SUB_FEE;
+  const upiId    = ADMIN_UPI;
+  const name     = 'TEST11';
+  const note     = 'TEST11 Subscription';
+  const upiLink  = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+  window.location.href = upiLink;
+  // Fallback after 2s - show the ref input
+  setTimeout(() => {
+    showUPIRef();
+    toast('After paying, enter your transaction ID below','info');
+  }, 2000);
+}
+
+function copyUPI() {
+  navigator.clipboard?.writeText(ADMIN_UPI);
+  toast('UPI ID copied! Open GPay/PhonePe and send ₹'+SUB_FEE,'success');
+}
+
+function showUPIRef() {
+  const el = document.getElementById('upi_ref_section');
+  if (el) { el.style.display='block'; el.scrollIntoView({behavior:'smooth'}); }
+  // Hide the "I've Paid" button
+  const btn = el?.nextElementSibling;
+  if (btn) btn.style.display='none';
 }
 
 async function doSubPayment() {
@@ -1488,8 +1697,11 @@ function pageRooms() {
               </div>
               <span class="badge ${spots>0?'b-green':'b-red'}">${spots>0?spots+' spots':'Full'}</span>
             </div>
-            <div class="sg3" style="margin-bottom:12px">
-              ${[{l:'Entry Fee',v:'₹'+ROOM_FEE},{l:'Prize Pool',v:'₹'+p.pool},{l:'Winner Gets',v:'₹'+p.winner}].map(s=>`<div class="sb"><div style="font-weight:800;font-size:14px;color:var(--ac)">${s.v}</div><div style="font-size:10px;color:var(--mu)">${s.l}</div></div>`).join('')}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+              <div class="sb" style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px;color:var(--ac)">₹${ROOM_FEE}</div><div style="font-size:10px;color:var(--mu)">Entry</div></div>
+              <div class="sb" style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px">🥇₹${PRIZE_1ST}</div><div style="font-size:10px;color:var(--mu)">1st</div></div>
+              <div class="sb" style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px">🥈₹${PRIZE_2ND}</div><div style="font-size:10px;color:var(--mu)">2nd</div></div>
+              <div class="sb" style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px">🥉₹${PRIZE_3RD}</div><div style="font-size:10px;color:var(--mu)">3rd</div></div>
             </div>
             ${alreadyIn
               ?`<button class="btn btn-green btn-sm" onclick="joinRoomAsPlayer('${room.code}')">✅ You're in! Enter Room →</button>`
@@ -1534,9 +1746,16 @@ function renderCreateRoom() {
   const tests=getTests();
   return `
   <div class="card card-gold cp" style="margin-bottom:14px">
-    <p style="font-weight:700;color:var(--ac);margin-bottom:10px">💰 Room Economics</p>
-    ${[{l:'Your entry',v:'₹'+ROOM_FEE},{l:'Max members',v:MAX_MEMBERS+' players'},{l:'Full pool',v:'₹'+(ROOM_FEE*(MAX_MEMBERS+1))},{l:'Winner (65%)',v:'₹'+Math.floor(ROOM_FEE*(MAX_MEMBERS+1)*WINNER_PCT)},{l:'You get (15%)',v:'₹'+Math.floor(ROOM_FEE*(MAX_MEMBERS+1)*CREATOR_PCT)},{l:'Admin (20%)',v:'₹'+Math.floor(ROOM_FEE*(MAX_MEMBERS+1)*ADMIN_PCT)}]
-      .map(r=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(245,158,11,.15)"><span style="font-size:13px;color:var(--mu)">${r.l}</span><strong style="font-size:13px">${r.v}</strong></div>`).join('')}
+    <p style="font-weight:700;color:var(--ac);margin-bottom:10px">🏆 Prize Structure</p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">11 players × ₹11 = ₹121 pool. Top 3 win prizes!</p>
+    ${[
+      {l:'Each player pays',  v:'₹'+ROOM_FEE,        i:'💳'},
+      {l:'Total prize pool',  v:'₹'+(ROOM_FEE*MAX_MEMBERS), i:'💰'},
+      {l:'🥇 1st place',      v:'₹'+PRIZE_1ST,        i:'🏆'},
+      {l:'🥈 2nd place',      v:'₹'+PRIZE_2ND,        i:'🥈'},
+      {l:'🥉 3rd place',      v:'₹'+PRIZE_3RD,        i:'🥉'},
+      {l:'Admin gets',        v:'₹'+ADMIN_CUT,         i:'⚙️'},
+    ].map(r=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(245,158,11,.15)"><span style="font-size:13px;color:var(--mu)">'+r.i+' '+r.l+'</span><strong style="font-size:14px;color:var(--ac)">'+r.v+'</strong></div>').join('')}
   </div>
   <div class="ig">
     <label>Select Test</label>
@@ -1551,7 +1770,7 @@ function renderCreateRoom() {
   </div>
   <div style="padding:14px 16px;border-radius:13px;background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.2);margin-bottom:14px">
     <p style="font-size:13px;font-weight:700;color:var(--a3);margin-bottom:6px">Pay ₹${ROOM_FEE} room creation fee</p>
-    <p style="font-size:13px;color:var(--mu);margin-bottom:5px">Send to UPI: <strong style="color:var(--ac);font-family:'DM Mono',monospace">${ADMIN_UPI}</strong></p>
+    <p style="font-size:13px;color:var(--mu);margin-bottom:5px">Send to UPI: <strong style="color:var(--ac);font-family:'DM Mono',monospace">${getAdminUPI()}</strong></p>
     <p style="font-size:12px;color:var(--mu)">Note the room name in UPI remarks. Enter reference below.</p>
   </div>
   <div style="padding:12px 14px;border-radius:12px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);margin-bottom:14px">
@@ -1621,7 +1840,7 @@ function showJoinModal(code) {
       ${[{l:'Entry Fee',v:'₹'+ROOM_FEE},{l:'Current Pool',v:'₹'+room.pool},{l:'You Could Win',v:'₹'+Math.floor((room.pool+ROOM_FEE)*WINNER_PCT)}].map(s=>`<div class="sb"><div style="font-weight:800;font-size:14px;color:var(--ac)">${s.v}</div><div style="font-size:10px;color:var(--mu)">${s.l}</div></div>`).join('')}
     </div>
     <div style="padding:12px 14px;border-radius:12px;background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.2);margin-bottom:14px">
-      <p style="font-size:13px;color:var(--mu)">Send <strong>₹${ROOM_FEE}</strong> to <strong style="color:var(--ac);font-family:'DM Mono',monospace">${ADMIN_UPI}</strong> with remark <strong>#${code}</strong></p>
+      <p style="font-size:13px;color:var(--mu)">Send <strong>₹${ROOM_FEE}</strong> to <strong style="color:var(--ac);font-family:'DM Mono',monospace">${getAdminUPI()}</strong> with remark <strong>#${code}</strong></p>
     </div>
     <div style="padding:10px 13px;border-radius:11px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);margin-bottom:14px">
       <p style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:3px">💳 Razorpay</p>
@@ -1821,25 +2040,36 @@ function pageRoomLeaderboard() {
 
     ${isHost&&room.status==='live'&&sorted.length>0?`
     <div class="card card-green cp" style="margin-top:14px">
-      <p style="font-weight:700;color:var(--gn);margin-bottom:10px">Settle Room Prizes</p>
-      <p style="font-size:13px;color:var(--mu);margin-bottom:12px">When quiz ends, settle prizes. Pay winner via UPI manually.</p>
-      <button class="btn btn-green" onclick="settleRoom('${code}','${sorted[0]?.phone||''}','${sorted[0]?.name||''}')">✅ Declare Winner: ${sorted[0]?.name||''} (₹${prizes.winner})</button>
+      <p style="font-weight:700;color:var(--gn);margin-bottom:6px">🏆 Settle Prizes</p>
+      <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Pay winners via UPI manually after settling</p>
+      <div style="margin-bottom:10px">
+        ${sorted[0]?'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:10px;background:rgba(245,158,11,.1);margin-bottom:6px"><span>🥇 '+sorted[0].name+'</span><strong style="color:var(--ac)">₹'+PRIZE_1ST+'</strong></div>':''}
+        ${sorted[1]?'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:10px;background:var(--s2);margin-bottom:6px"><span>🥈 '+sorted[1].name+'</span><strong style="color:var(--mu)">₹'+PRIZE_2ND+'</strong></div>':''}
+        ${sorted[2]?'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:10px;background:var(--s2)"><span>🥉 '+sorted[2].name+'</span><strong style="color:var(--mu)">₹'+PRIZE_3RD+'</strong></div>':''}
+      </div>
+      <button class="btn btn-green" onclick="settleRoom('${code}',${sorted[0]?JSON.stringify({phone:sorted[0].phone,name:sorted[0].name}):'null'},${sorted[1]?JSON.stringify({phone:sorted[1].phone,name:sorted[1].name}):'null'},${sorted[2]?JSON.stringify({phone:sorted[2].phone,name:sorted[2].name}):'null'})">
+        ✅ Settle & Declare Winners
+      </button>
     </div>`:''}
 
     <button class="btn btn-navy btn-sm" style="margin-top:14px" onclick="go('rooms')">← Back to Rooms</button>
   </div>`;
 }
 
-async function settleRoom(code, winnerPhone, winnerName) {
+async function settleRoom(code, first, second, third) {
   const rooms = getRooms();
   const ri    = rooms.findIndex(r => r.code === code);
   if (ri < 0) return;
   const p = prizePool(rooms[ri]);
   rooms[ri].status     = 'done';
-  rooms[ri].winnerPhone = winnerPhone;
-  rooms[ri].winnerName  = winnerName;
-  rooms[ri].prizes      = p;
-  rooms[ri].settledAt   = new Date().toISOString();
+  rooms[ri].winnerPhone  = first?.phone;
+  rooms[ri].winnerName   = first?.name;
+  rooms[ri].secondPhone  = second?.phone;
+  rooms[ri].secondName   = second?.name;
+  rooms[ri].thirdPhone   = third?.phone;
+  rooms[ri].thirdName    = third?.name;
+  rooms[ri].prizes       = p;
+  rooms[ri].settledAt    = new Date().toISOString();
   saveRooms(rooms);
   await fsSet('rooms', code, rooms[ri]);
 
@@ -1866,6 +2096,80 @@ async function settleRoom(code, winnerPhone, winnerName) {
 }
 
 // ─── PRACTICE ─────────────────────────────────────────────────
+function pageManual() {
+  const isAdmin = S.user?.role === 'admin';
+  const sections = isAdmin ? adminManualSections() : studentManualSections();
+  const tab = S.data?.mtab || 0;
+
+  return `
+  ${topNav('📖 User Manual', true)}
+  <div class="page">
+    <!-- Tab pills -->
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px">
+      ${sections.map((s,i)=>'<button onclick="go('manual',{mtab:'+i+'})" style="flex-shrink:0;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;background:'+(tab===i?'var(--ac)':'var(--s2)')+';color:'+(tab===i?'#000':'var(--mu)')+';border:none">'+s.icon+' '+s.title+'</button>').join('')}
+    </div>
+
+    <!-- Section content -->
+    <div class="card cp" style="margin-bottom:14px">
+      <div style="font-size:28px;margin-bottom:8px">${sections[tab].icon}</div>
+      <h2 style="font-weight:900;font-size:18px;margin-bottom:6px">${sections[tab].title}</h2>
+      <p style="font-size:13px;color:var(--mu);margin-bottom:16px;line-height:1.6">${sections[tab].desc}</p>
+      ${sections[tab].steps.map((step,i)=>'<div style="display:flex;gap:12px;padding:12px;border-radius:11px;background:var(--s2);margin-bottom:8px"><div style="width:28px;height:28px;border-radius:8px;background:var(--ac);color:#000;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(i+1)+'</div><div style="font-size:13px;line-height:1.6;color:var(--tx)">'+step+'</div></div>').join('')}
+    </div>
+
+    <!-- Navigation -->
+    <div style="display:flex;gap:8px">
+      ${tab>0?'<button class="btn btn-navy btn-sm" style="flex:1" onclick="go('manual',{mtab:'+(tab-1)+'})">← Previous</button>':''}
+      ${tab<sections.length-1?'<button class="btn btn-gold btn-sm" style="flex:1" onclick="go('manual',{mtab:'+(tab+1)+'})">Next →</button>':'<button class="btn btn-green btn-sm" style="flex:1" onclick="go('home')">✅ Got it! Start →</button>'}
+    </div>
+  </div>`;
+}
+
+function studentManualSections() { return [
+  { icon:'📱', title:'Getting Started',
+    desc:'Welcome to TEST 11 — your TNPSC exam preparation app. Here's how to get started.',
+    steps:['Open the app at <strong>vel5532.github.io/tnpsc</strong>','Enter your <strong>full name</strong> and <strong>10-digit mobile number</strong>','Tap <strong>Sign In →</strong> — your account is created automatically','Wait for admin approval (usually within a few hours)','Once approved, you'll be redirected to the home screen'] },
+  { icon:'💳', title:'Subscription — ₹11/month',
+    desc:'Subscribe for just ₹11/month to access all tests and features.',
+    steps:['Go to <strong>Subscribe</strong> from the home screen or bottom menu','Choose your payment method: Razorpay (instant) or UPI','<strong>Razorpay:</strong> Tap "Pay ₹11 Now" → pay online → account activates instantly','<strong>UPI/GPay:</strong> Tap "Open UPI App" → send ₹11 → enter transaction ID','Admin will verify UPI payment and activate your account within a few hours','Subscription is valid for <strong>30 days</strong> from payment date'] },
+  { icon:'📝', title:'Taking Tests',
+    desc:'All tests are created by admin from TNPSC question papers and study materials.',
+    steps:['Tap <strong>Tests</strong> in the bottom menu','Choose any available test and tap <strong>Start Test →</strong>','If the test has Tamil and English questions, <strong>select your preferred language</strong>','Answer questions by tapping the option — tap again to change','Use the <strong>🔲 palette button</strong> to jump to any question','Tap <strong>🚩 Mark</strong> to flag questions for review','Timer counts down — test auto-submits when time ends','Tap <strong>Submit ✓</strong> when done to see your results'] },
+  { icon:'📊', title:'Results & Analytics',
+    desc:'After each test, get detailed analysis of your performance.',
+    steps:['Score shown as percentage with grade (Excellent/Good/Average)','See <strong>topic-wise accuracy</strong> — identify your weak areas','Review every question with correct answer and explanation','All results saved in <strong>My Results</strong> tab','Wrong answers automatically saved for practice'] },
+  { icon:'🔁', title:'Practice Mode',
+    desc:'Practice your wrong answers until you master them.',
+    steps:['Tap <strong>📝 Tests</strong> → bottom nav → find Practice','All wrong answers from past tests are collected here','Answer questions, check your answer, see explanation','Score tracked: Correct vs Wrong in practice session','Tap Skip to move on, Clear All to reset the list'] },
+  { icon:'🎮', title:'Game Rooms — Win Prizes!',
+    desc:'Compete with other students in real-time quiz battles and win cash prizes!',
+    steps:['Tap <strong>🎮 Game Rooms</strong> in the bottom menu','Browse public rooms or join with a 6-character code','Pay <strong>₹11 entry fee</strong> to join (via Razorpay or UPI)','Wait in lobby — quiz starts when host begins','Answer all questions as fast as possible — speed matters!','<strong>Prize pool: 11 players × ₹11 = ₹121</strong>','🥇 1st place wins ₹55 · 🥈 2nd wins ₹33 · 🥉 3rd wins ₹11','Admin pays winners via UPI after the quiz ends'] },
+  { icon:'🎮', title:'Creating a Game Room',
+    desc:'Any subscribed student can create a room and host a quiz competition.',
+    steps:['Go to Game Rooms → tap <strong>+ Create</strong>','Select a test from the list','Pay <strong>₹11 entry fee</strong> (you also participate as a player)','Share the <strong>6-character room code</strong> with friends','Wait for players to join (max 11 players including you)','Once all players join, the quiz starts simultaneously','After results, admin settles prizes and pays winners via UPI'] },
+]; }
+
+function adminManualSections() { return [
+  { icon:'👑', title:'Admin Login',
+    desc:'You have special admin access — no OTP or approval needed.',
+    steps:['Open the app → enter your name + your registered mobile number','Tap Sign In — you go straight to Admin Panel','Your number is set as ADMIN_PHONE in the code','No one else can access Admin Panel'] },
+  { icon:'👥', title:'Managing Users',
+    desc:'Review and approve student registrations from the Users tab.',
+    steps:['Admin Panel → <strong>👥 Users tab</strong>','New students appear with ⏳ Pending status','Tap <strong>✅ Approve</strong> to grant access — student can login immediately','Tap <strong>🚫 Ban</strong> to permanently block a student','Tap <strong>🗑 Delete</strong> to remove a student completely','Tap <strong>➕ Extend 30d</strong> to give 30 more days of subscription','Tap <strong>🔄</strong> button to sync latest users from Firebase cloud','Filter by: All · Pending · Active · Subscribed · Expired · Banned'] },
+  { icon:'💰', title:'Managing Payments',
+    desc:'Review payment submissions and activate subscriptions.',
+    steps:['Admin Panel → <strong>💰 Payments tab</strong>','Pending payments need your verification','Check UPI transaction ID matches the amount','Tap <strong>✅ Approve & Activate</strong> — student account activates instantly','Tap <strong>✗ Reject</strong> for invalid payments','Razorpay payments are auto-approved — no action needed','Revenue stats shown at top: total received, your earnings'] },
+  { icon:'📁', title:'Uploading Tests',
+    desc:'Create tests from PDF question papers or study notes.',
+    steps:['Admin Panel → <strong>📁 Upload tab</strong>','Drag & drop or choose a PDF file','App auto-detects if PDF has existing Q&A format','If Q&A found: tap <strong>Create Test</strong> — instant, no API needed','If study notes: app uses AI (Groq) to generate MCQ, T/F, fill-blank questions','Add test name, subject, duration','Tap <strong>📢 Publish</strong> — students can see and take the test','Unpublish anytime to hide from students'] },
+  { icon:'🎮', title:'Game Room Prizes',
+    desc:'When a room quiz ends, you settle prizes and pay winners.',
+    steps:['Go to Game Rooms → find the completed room','Or go to leaderboard during/after the quiz','Top 3 players are automatically identified','Tap <strong>✅ Settle & Declare Winners</strong>','Pay winners manually via UPI:','🥇 1st place → ₹55 via UPI','🥈 2nd place → ₹33 via UPI','🥉 3rd place → ₹11 via UPI','You (admin) keep ₹22 from each room (₹121 - ₹99)'] },
+  { icon:'⚙️', title:'Settings',
+    desc:'Configure API keys, payment links, and UPI ID.',
+    steps:['Admin Panel → <strong>⚙️ Settings tab</strong>','<strong>UPI ID:</strong> Enter your UPI for students to pay directly','<strong>Razorpay Key:</strong> From razorpay.com → Settings → API Keys → rzp_live_xxx','<strong>Payment Link:</strong> Create in Razorpay → Payment Links → Copy link — easiest!','<strong>Groq Key:</strong> Free from console.groq.com — for AI question generation','<strong>Google Sheets URL:</strong> Auto-log all payments to a spreadsheet','Revenue summary shows your total earnings at top of Settings'] },
+]; }
+
 function pagePractice() {
   const wrong=LS.g('wrong_qs',[])||[];
   const cur=S.data?.cur||0;
@@ -2011,6 +2315,7 @@ function pageAdmin() {
       ${tab==='users'?adminUsers(allUsers):''}
       ${tab==='tests'?adminTests(allTests):''}
       ${tab==='upload'?adminUpload():''}
+      ${tab==='settings'?adminSettings():''}
     </div>
   </div>`;
 }
@@ -2334,21 +2639,24 @@ function adminUpload(){
   const tests=LS.g('tests',[])||[];
   return `
   <div class="stitle"><span>📁</span>Upload PDF to Create Tests</div>
-  <p style="font-size:13px;color:var(--mu);margin-bottom:16px">Upload a TNPSC question paper PDF or study notes. App auto-detects Q&A format.</p>
+  <p style="font-size:13px;color:var(--mu);margin-bottom:16px">Upload any PDF, image, or text file. AI reads text <em>and</em> images — perfect for scanned papers!</p>
 
-  ${!LS.g('groq_key','')&&!GROQ_KEY?`<div class="card card-red cp" style="margin-bottom:14px">
+  ${!LS.g('or_key','')&&!OPENROUTER_KEY?`<div class="card card-red cp" style="margin-bottom:14px">
     <p style="font-weight:700;color:var(--rd);margin-bottom:6px">⚠️ No Groq API Key</p>
     <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Free key from console.groq.com for AI question generation</p>
     <div style="display:flex;gap:8px"><input id="groq_inp" class="inp" type="password" placeholder="gsk_..." style="flex:1;font-size:13px"/><button class="btn btn-gold btn-xs" style="flex-shrink:0;padding:0 16px" onclick="saveGroqKey()">Save</button></div>
   </div>`:''}
 
   ${stage==='idle'?`
-  <div onclick="document.getElementById('pdf_inp').click()" ondragover="event.preventDefault();this.style.borderColor='var(--ac)'" ondragleave="this.style.borderColor=''" ondrop="event.preventDefault();this.style.borderColor='';handleDrop(event)" style="border:2px dashed var(--b2);border-radius:17px;padding:36px 20px;text-align:center;cursor:pointer;transition:all .3s">
-    <input type="file" id="pdf_inp" accept=".pdf,.txt" style="display:none" onchange="handleFileInput(this)"/>
-    <div style="font-size:48px;margin-bottom:12px">📋</div>
-    <p style="font-weight:800;font-size:16px;margin-bottom:5px">Drop PDF or TXT here</p>
-    <p style="color:var(--mu);font-size:13px;margin-bottom:14px">Question papers, study notes, textbooks</p>
-    <button class="btn btn-gold" style="max-width:200px;margin:0 auto" onclick="event.stopPropagation()">Choose File</button>
+  <div onclick="document.getElementById('pdf_inp').click()" ondragover="event.preventDefault();this.style.borderColor='var(--ac)'" ondragleave="this.style.borderColor=''" ondrop="event.preventDefault();this.style.borderColor='';handleDrop(event)" style="border:2px dashed var(--b2);border-radius:17px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .3s">
+    <input type="file" id="pdf_inp" accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" onchange="handleFileInput(this)"/>
+    <div style="font-size:44px;margin-bottom:10px">📄</div>
+    <p style="font-weight:800;font-size:15px;margin-bottom:5px">Drop file here or tap to choose</p>
+    <p style="color:var(--mu);font-size:12px;margin-bottom:10px">PDF • Images (PNG/JPG) • Text files</p>
+    <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px">
+      ${['📋 PDF','🖼 PNG/JPG','📝 TXT'].map(f=>'<span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:var(--s2);color:var(--mu);border:1px solid var(--bd)">'+f+'</span>').join('')}
+    </div>
+    <button class="btn btn-gold btn-sm" style="max-width:180px;margin:0 auto" onclick="event.stopPropagation()">Choose File</button>
   </div>
 
   <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
@@ -2375,7 +2683,7 @@ function adminUpload(){
     <button class="btn btn-ghost btn-sm" style="flex:0 0 auto;width:auto;padding:12px 18px" onclick="go('admin',{tab:'upload',uploadStage:'idle'})">← Back</button>
     ${S.data.detected.qCount>=3
       ?`<button class="btn btn-green" style="flex:1" onclick="processDirectPDF()">🚀 Create Test (${S.data.detected.qCount} Qs)</button>`
-      :`<button class="btn btn-gold" style="flex:1" ${!LS.g('groq_key','')&&!GROQ_KEY?'disabled':''} onclick="processAIPDF()">🤖 Generate with AI →</button>`}
+      :`<button class="btn btn-gold" style="flex:1" ${!LS.g('or_key','')&&!OPENROUTER_KEY?'disabled':''} onclick="processAIPDF()">🤖 Generate with AI →</button>`}
   </div>`:''}
 
   ${stage==='processing'?`<div style="text-align:center;padding:20px 0"><div style="font-size:48px;margin-bottom:12px;animation:pulse 1s ease-in-out infinite">⚙️</div><p style="font-weight:700;margin-bottom:6px">Processing...</p><div class="pbar" style="height:10px;margin:16px 0;border-radius:6px"><div id="proc_bar" class="pfill" style="width:0%;background:linear-gradient(90deg,var(--ac),var(--a3))"></div></div><p id="proc_pct" style="font-family:'DM Mono',monospace;color:var(--ac);font-weight:700;margin-bottom:16px">0%</p><div id="proc_steps"></div></div>`:''}
@@ -2390,28 +2698,79 @@ function handleDrop(e){const f=e.dataTransfer.files[0];if(f)detectPDF(f);}
 function handleFileInput(inp){const f=inp.files[0];if(f)detectPDF(f);}
 
 async function detectPDF(file) {
-  S.data={...S.data,uploadStage:'detecting',fileName:file.name};
+  S.data = {...S.data, uploadStage:'detecting', fileName:file.name, imagePages:[]};
   render();
   await new Promise(r=>setTimeout(r,100));
-  const status=document.getElementById('detect_status');
+  const status = document.getElementById('detect_status');
+
   try {
-    let text='';
-    if(file.name.endsWith('.txt')){
-      text=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result||'');r.onerror=rej;r.readAsText(file);});
+    let text = '';
+    let imagePages = [];
+    const isImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(file.name);
+    const isTxt   = file.name.endsWith('.txt');
+
+    if (isImage) {
+      // Direct image upload — convert to base64 for vision AI
+      if(status) status.textContent = 'Reading image...';
+      const b64 = await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=e=>res(e.target.result.split(',')[1]);
+        r.onerror=rej;
+        r.readAsDataURL(file);
+      });
+      imagePages = [b64];
+      text = '';
+    } else if (isTxt) {
+      text = await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=e=>res(e.target.result||'');
+        r.onerror=rej;
+        r.readAsText(file);
+      });
     } else {
-      if(status)status.textContent='Extracting PDF text...';
-      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const buf=await file.arrayBuffer();
-      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-      for(let p=1;p<=pdf.numPages;p++){const pg=await pdf.getPage(p);const ct=await pg.getTextContent();text+=ct.items.map(i=>i.str).join(' ')+'\n';}
+      // PDF: extract text AND render pages as images for vision AI
+      if(status) status.textContent = 'Extracting PDF text...';
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+
+      for (let p=1; p<=pdf.numPages; p++) {
+        const pg = await pdf.getPage(p);
+        // Extract text
+        const ct = await pg.getTextContent();
+        text += ct.items.map(i=>i.str).join(' ') + '
+';
+        // Render page as image (for vision AI, max 3 pages)
+        if (p <= 3) {
+          if(status) status.textContent = 'Rendering page '+p+'/'+Math.min(pdf.numPages,3)+'...';
+          const viewport = pg.getViewport({scale:1.5});
+          const canvas   = document.createElement('canvas');
+          canvas.width   = viewport.width;
+          canvas.height  = viewport.height;
+          await pg.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
+          const b64 = canvas.toDataURL('image/png').split(',')[1];
+          imagePages.push(b64);
+        }
+      }
     }
-    S.data.extractedText=text;
-    if(status)status.textContent=`Extracted ${text.length.toLocaleString()} chars. Detecting Q&A...`;
+
+    S.data.extractedText = text;
+    S.data.imagePages    = imagePages;
+
+    if(status) status.textContent = 'Analysing content ('+(text.length>0?text.length.toLocaleString()+' chars':'')+(imagePages.length>0?(text.length>0?' + ':'')+imagePages.length+' page images':'')+')'+'...';
     await new Promise(r=>setTimeout(r,300));
-    const parsed=parseQA(text);
-    S.data={...S.data,uploadStage:'settings',detected:{qCount:parsed.length,parsed:parsed.length>=3?parsed:null}};
+
+    const parsed = parseQA(text);
+    S.data = {
+      ...S.data,
+      uploadStage:'settings',
+      detected:{ qCount:parsed.length, parsed:parsed.length>=3?parsed:null, hasImages:imagePages.length>0 }
+    };
     render();
-  } catch(e){toast('Failed to read file: '+e.message,'error');S.data={...S.data,uploadStage:'idle'};render();}
+  } catch(e) {
+    toast('Failed to read file: '+e.message,'error');
+    S.data={...S.data,uploadStage:'idle'}; render();
+  }
 }
 
 function parseQA(text){
@@ -2445,12 +2804,12 @@ function setProgress(pct,msg){
 async function processDirectPDF(){
   const name=document.getElementById('up_name')?.value?.trim();
   const sub=document.getElementById('up_sub')?.value||'General Studies';
-  const dur=parseInt(document.getElementById('up_dur')?.value)||60;
   if(!name){toast('Enter test name','error');return;}
   S.data={...S.data,uploadStage:'processing'};render();await new Promise(r=>setTimeout(r,100));
   setProgress(20,'Reading questions...');await new Promise(r=>setTimeout(r,400));
   const qs=S.data.detected?.parsed||[];
   setProgress(80,`${qs.length} questions loaded`);await new Promise(r=>setTimeout(r,300));
+  const dur=qs.length; // 1 min per question
   const test={id:'test_'+Date.now(),name,subject:sub,dur,diff:'Mixed',qs,published:false,createdAt:new Date().toISOString()};
   const ts=LS.g('tests',[])||[];ts.unshift(test);saveTests(ts);
   setProgress(100,'Test saved!');await new Promise(r=>setTimeout(r,300));
@@ -2458,35 +2817,106 @@ async function processDirectPDF(){
 }
 
 async function processAIPDF(){
-  const name=document.getElementById('up_name')?.value?.trim();
-  const sub=document.getElementById('up_sub')?.value||'General Studies';
-  const dur=parseInt(document.getElementById('up_dur')?.value)||60;
-  const count=parseInt(document.getElementById('up_count')?.value)||20;
-  const qtype=document.getElementById('up_qtype')?.value||'mixed';
-  if(!name){toast('Enter test name','error');return;}
-  const key=LS.g('groq_key','')||GROQ_KEY;
-  if(!key){toast('No Groq API key. Add in settings.','error');return;}
-  S.data={...S.data,uploadStage:'processing'};render();await new Promise(r=>setTimeout(r,100));
-  setProgress(10,'Reading PDF...');
-  const text=S.data.extractedText||'';
-  if(text.length<50){toast('Could not read text from PDF. Try a .txt file.','error');S.data={...S.data,uploadStage:'settings'};render();return;}
-  setProgress(30,'Sending to AI...');await new Promise(r=>setTimeout(r,300));
-  const prompt=`Generate ${count} TNPSC-style questions from this text only. No external knowledge. Return ONLY a JSON array:\n[{"type":"mcq","q":"Q?","opts":["A","B","C","D"],"ans":0,"exp":"Explanation.","topic":"Topic","diff":"Easy"}]\ndiff: Easy/Medium/Hard, ans: 0-3 (index)\n\nTEXT:\n${text.slice(0,7000)}`;
-  try{
-    setProgress(50,'Calling Groq AI...');
-    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify({model:'llama3-70b-8192',temperature:.3,max_tokens:4096,messages:[{role:'system',content:'Output ONLY valid JSON array. No markdown.'},{role:'user',content:prompt}]})});
-    if(!res.ok){const e=await res.json().catch(()=>({}));toast('AI Error: '+(e?.error?.message||'HTTP '+res.status),'error');S.data={...S.data,uploadStage:'settings'};render();return;}
-    const data=await res.json();
-    const raw=data.choices?.[0]?.message?.content||'';
-    const s=raw.indexOf('['),e=raw.lastIndexOf(']');
-    if(s<0||e<0){toast('AI returned bad format','error');S.data={...S.data,uploadStage:'settings'};render();return;}
-    const qs=JSON.parse(raw.slice(s,e+1));
-    setProgress(90,'Questions generated!');await new Promise(r=>setTimeout(r,300));
-    const test={id:'test_'+Date.now(),name,subject:sub,dur,diff:'Mixed',qs:qs.map((q,i)=>({...q,id:'ai_'+i})),published:false,createdAt:new Date().toISOString()};
-    const ts=LS.g('tests',[])||[];ts.unshift(test);saveTests(ts);
-    setProgress(100,'Done!');await new Promise(r=>setTimeout(r,300));
-    S.data={...S.data,uploadStage:'done',lastTest:test};render();
-  }catch(err){toast('AI failed: '+err.message,'error');S.data={...S.data,uploadStage:'settings'};render();}
+  const name  = document.getElementById('up_name')?.value?.trim();
+  const sub   = document.getElementById('up_sub')?.value||'General Studies';
+  const count = parseInt(document.getElementById('up_count')?.value)||20;
+  if (!name) { toast('Enter test name','error'); return; }
+
+  const key = LS.g('or_key','') || OPENROUTER_KEY;
+  if (!key) { toast('No OpenRouter API key. Add in Admin → Settings.','error'); return; }
+
+  S.data = {...S.data, uploadStage:'processing'}; render();
+  await new Promise(r=>setTimeout(r,100));
+
+  const text       = S.data.extractedText || '';
+  const imagePages = S.data.imagePages || [];   // base64 page images
+  const hasImages  = imagePages.length > 0;
+  const hasText    = text.length > 50;
+
+  if (!hasText && !hasImages) {
+    toast('Could not read content from file','error');
+    S.data={...S.data,uploadStage:'settings'}; render(); return;
+  }
+
+  setProgress(20, 'Preparing content...');
+  await new Promise(r=>setTimeout(r,200));
+
+  // Build message content — text + images (OpenRouter supports vision)
+  const sysPrompt = 'You are a TNPSC exam question creator. Output ONLY a valid JSON array. No markdown, no explanation. Format: [{"type":"mcq","q":"Question?","opts":["A","B","C","D"],"ans":0,"exp":"Explanation.","topic":"Topic","diff":"Easy","lang":"en"}]. diff: Easy/Medium/Hard. ans: 0-3. lang: "en" for English, "ta" for Tamil questions.';
+
+  const userContent = [];
+
+  if (hasImages) {
+    setProgress(30, 'Sending images to AI...');
+    // Add up to 3 page images
+    imagePages.slice(0,3).forEach((b64,i) => {
+      userContent.push({ type:'image_url', image_url:{ url:'data:image/png;base64,'+b64 } });
+    });
+  }
+
+  const textPrompt = 'Generate '+count+' TNPSC-style MCQ questions from the content above.'
+    + (hasText ? ' Also use this extracted text:\n'+text.slice(0,4000) : '')
+    + '\nReturn ONLY JSON array, no markdown.';
+
+  userContent.push({ type:'text', text: textPrompt });
+
+  setProgress(50, 'Calling OpenRouter AI...');
+  await new Promise(r=>setTimeout(r,200));
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+key,
+        'HTTP-Referer':'https://vel5532.github.io/tnpsc/',
+        'X-Title':'TEST 11 TNPSC',
+      },
+      body: JSON.stringify({
+        model:       OR_MODEL,
+        temperature: 0.3,
+        max_tokens:  4096,
+        messages:[
+          { role:'system', content: sysPrompt },
+          { role:'user',   content: hasImages ? userContent : textPrompt },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(()=>({}));
+      toast('AI Error: '+(e?.error?.message||'HTTP '+res.status),'error');
+      S.data={...S.data,uploadStage:'settings'}; render(); return;
+    }
+
+    const data  = await res.json();
+    const raw   = data.choices?.[0]?.message?.content || '';
+    const si    = raw.indexOf('['), ei = raw.lastIndexOf(']');
+    if (si<0||ei<0) { toast('AI returned bad format. Try again.','error'); S.data={...S.data,uploadStage:'settings'}; render(); return; }
+
+    const qs = JSON.parse(raw.slice(si, ei+1));
+    setProgress(90, qs.length+' questions generated!');
+    await new Promise(r=>setTimeout(r,300));
+
+    // Timer = 1 min per question
+    const dur = qs.length;
+    const test = {
+      id:        'test_'+Date.now(),
+      name, subject:sub, dur,
+      diff:      'Mixed',
+      qs:        qs.map((q,i)=>({...q, id:'ai_'+i})),
+      published: false,
+      createdAt: new Date().toISOString(),
+    };
+    const ts = LS.g('tests',[])||[]; ts.unshift(test); saveTests(ts);
+    setProgress(100,'Done!');
+    await new Promise(r=>setTimeout(r,300));
+    S.data = {...S.data, uploadStage:'done', lastTest:test}; render();
+
+  } catch(err) {
+    toast('AI failed: '+err.message,'error');
+    S.data={...S.data,uploadStage:'settings'}; render();
+  }
 }
 
 // ─── SHARED COMPONENTS ────────────────────────────────────────
@@ -2513,7 +2943,7 @@ function render(){
     test_intro:pageTestIntro,exam:pageExam,result:pageResult,
     results:pageResults,subscribe:pageSubscribe,
     rooms:pageRooms,room_waiting:pageRoomWaiting,room_host:pageRoomHost,room_leaderboard:pageRoomLeaderboard,
-    practice:pagePractice,profile:pageProfile,admin:pageAdmin,
+    practice:pagePractice,profile:pageProfile,admin:pageAdmin,manual:pageManual,
   };
   const fn=pages[S.page];
   root.innerHTML=fn?fn():`<div style="text-align:center;padding:60px 20px"><p>Page not found</p><button class="btn btn-gold" onclick="go('home')">Home</button></div>`;
@@ -2522,7 +2952,7 @@ function render(){
 function adminSettings(){
   const rzpKey   = LS.g('rzp_key','') || RAZORPAY_KEY_ID;
   const sheetUrl = LS.g('sheet_url','') || SHEET_URL;
-  const groqKey  = LS.g('groq_key','') || GROQ_KEY;
+  const orKey    = LS.g('or_key','') || OPENROUTER_KEY;
   const pays     = getPayments().filter(p=>p.status==='approved');
   const subRev   = pays.filter(p=>p.type==='subscription').reduce((a,b)=>a+b.amount,0);
   const roomRev  = pays.filter(p=>p.type==='room_entry').reduce((a,b)=>a+Math.floor(b.amount*ADMIN_PCT),0);
@@ -2539,13 +2969,23 @@ function adminSettings(){
 
   <div class="card cp" style="margin-bottom:12px">
     <p style="font-weight:700;margin-bottom:4px">💳 Razorpay Key ID</p>
-    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Get from <strong>razorpay.com/dashboard</strong> → Settings → API Keys</p>
-    <p style="font-size:11px;color:var(--mu);margin-bottom:6px">Use <code style="background:var(--s3);padding:1px 5px;border-radius:4px">rzp_test_</code> for testing, <code style="background:var(--s3);padding:1px 5px;border-radius:4px">rzp_live_</code> for production</p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Get from <strong>razorpay.com/dashboard</strong> → Settings → API Keys. Use <code style="background:var(--s3);padding:1px 5px;border-radius:4px">rzp_live_</code> for production.</p>
     <div style="display:flex;gap:8px">
-      <input id="rzp_inp" class="inp" type="password" value="${rzpKey}" placeholder="rzp_test_XXXXXXXX" style="flex:1;font-size:13px;font-family:'DM Mono',monospace"/>
+      <input id="rzp_inp" class="inp" type="password" value="${rzpKey}" placeholder="rzp_live_XXXXXXXX" style="flex:1;font-size:13px;font-family:'DM Mono',monospace"/>
       <button class="btn btn-gold btn-xs" style="flex-shrink:0;padding:0 14px" onclick="saveAdminSetting('rzp_key','rzp_inp','Razorpay key')">Save</button>
     </div>
-    ${rzpKey&&!rzpKey.includes('XXXXX')?'<p style="font-size:11px;color:var(--gn);margin-top:6px">✅ Key saved</p>':'<p style="font-size:11px;color:var(--rd);margin-top:6px">⚠️ Not configured</p>'}
+    ${rzpKey&&!rzpKey.includes('XXXXX')?'<p style="font-size:11px;color:var(--gn);margin-top:6px">✅ Key saved — Razorpay active</p>':'<p style="font-size:11px;color:var(--or);margin-top:6px">⚠️ Not set — students can still pay via UPI link</p>'}
+  </div>
+
+  <div class="card cp" style="margin-bottom:12px">
+    <p style="font-weight:700;margin-bottom:4px">🔗 Razorpay Payment Link <span class="badge b-green" style="font-size:10px">Easiest!</span></p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Create once in Razorpay → Payment Links → share with all students. No API key needed!</p>
+    <p style="font-size:12px;font-weight:600;color:var(--a3);margin-bottom:8px">Steps: razorpay.com → Payment Links → Create → Amount ₹11 → Copy link</p>
+    <div style="display:flex;gap:8px">
+      <input id="rzp_link_inp" class="inp" value="${LS.g('rzp_link','')}" placeholder="https://rzp.io/l/yourlink" style="flex:1;font-size:13px"/>
+      <button class="btn btn-gold btn-xs" style="flex-shrink:0;padding:0 14px" onclick="saveAdminSetting('rzp_link','rzp_link_inp','Payment link')">Save</button>
+    </div>
+    ${LS.g('rzp_link','')?'<p style="font-size:11px;color:var(--gn);margin-top:6px">✅ Payment link saved — students can click and pay instantly</p>':'<p style="font-size:11px;color:var(--mu);margin-top:6px">Once set, students get a one-click pay button</p>'}
   </div>
 
   <div class="card cp" style="margin-bottom:12px">
@@ -2559,13 +2999,76 @@ function adminSettings(){
   </div>
 
   <div class="card cp" style="margin-bottom:12px">
-    <p style="font-weight:700;margin-bottom:4px">🤖 Groq API Key <span class="badge b-green" style="font-size:10px">FREE</span></p>
-    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">For AI question generation from PDFs. Free at <strong>console.groq.com</strong></p>
+    <p style="font-weight:700;margin-bottom:4px">📲 Your UPI ID</p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Students send payment to this UPI ID. Used as backup when Razorpay unavailable.</p>
     <div style="display:flex;gap:8px">
-      <input id="groq_inp2" class="inp" type="password" value="${groqKey}" placeholder="gsk_..." style="flex:1;font-size:13px;font-family:'DM Mono',monospace"/>
-      <button class="btn btn-gold btn-xs" style="flex-shrink:0;padding:0 14px" onclick="saveAdminSetting('groq_key','groq_inp2','Groq key')">Save</button>
+      <input id="upi_inp" class="inp" value="${getAdminUPI()}" placeholder="yourname@upi" style="flex:1;font-size:14px;font-family:'DM Mono',monospace"/>
+      <button class="btn btn-gold btn-xs" style="flex-shrink:0;padding:0 14px" onclick="saveAdminSetting('admin_upi','upi_inp','UPI ID')">Save</button>
     </div>
-    ${groqKey?'<p style="font-size:11px;color:var(--gn);margin-top:6px">✅ Key saved</p>':'<p style="font-size:11px;color:var(--rd);margin-top:6px">⚠️ Not set</p>'}
+  </div>
+
+  <div class="card cp" style="margin-bottom:12px">
+    <p style="font-weight:700;margin-bottom:4px">🤖 OpenRouter API Key <span class="badge b-green" style="font-size:10px">FREE</span></p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:6px">Free at <strong>openrouter.ai</strong> → Sign up → Keys → Create Key</p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Uses <strong>google/gemma-3-12b-it:free</strong> — no cost, supports text + images!</p>
+    <div style="display:flex;gap:8px">
+      <input id="or_key_inp" class="inp" type="password" value="${LS.g('or_key','')}" placeholder="sk-or-v1-..." style="flex:1;font-size:13px;font-family:'DM Mono',monospace"/>
+      <button class="btn btn-gold btn-xs" style="flex-shrink:0;padding:0 14px" onclick="saveAdminSetting('or_key','or_key_inp','OpenRouter key')">Save</button>
+    </div>
+    ${LS.g('or_key','')?'<p style="font-size:11px;color:var(--gn);margin-top:6px">✅ Key saved — AI generation active for text + images</p>':'<p style="font-size:11px;color:var(--or);margin-top:6px">⚠️ Not set — add key to enable AI from PDFs/images</p>'}
+  </div>
+
+  <div class="card cp" style="margin-bottom:12px">
+    <p style="font-weight:700;margin-bottom:10px">💡 Which payment method to use?</p>
+    ${[
+      {i:'💳',t:'Razorpay Checkout',d:'Add your API key → student pays in-app → instant activation. Best UX.',tag:'Needs API key'},
+      {i:'🔗',t:'Payment Link',d:'Create link in Razorpay dashboard → paste above → students click & pay. Easiest setup!',tag:'Recommended'},
+      {i:'📲',t:'UPI Direct',d:'Student opens GPay/PhonePe → sends ₹11 → enters ref → you approve manually.',tag:'Manual approval'},
+    ].map(o=>'<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)"><div style="font-size:22px;flex-shrink:0">'+o.i+'</div><div><p style="font-weight:700;font-size:13px">'+o.t+' <span style="font-size:11px;color:var(--mu);font-weight:500">— '+o.tag+'</span></p><p style="font-size:12px;color:var(--mu)">'+o.d+'</p></div></div>').join('')}
+  </div>
+
+  <div style="margin-top:20px;padding:14px;border-radius:13px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2)">
+    <p style="font-weight:700;color:#60a5fa;margin-bottom:10px">📋 Google Sheets Setup Guide</p>
+    ${['1. Go to sheets.google.com → Create new spreadsheet','2. Tools → Apps Script → paste the webhook code (ask AI)','3. Deploy → Web App → Anyone can access → Copy URL','4. Paste URL above and Save','5. All payments + users + room results auto-log!'].map(s=>`<p style="font-size:12px;color:var(--mu);margin-bottom:5px">${s}</p>`).join('')}
+  </div>`;
+}
+
+function saveAdminSetting(lsKey, inputId, label) {
+  const v = document.getElementById(inputId)?.value?.trim();
+  if (v) { LS.s(lsKey, v); toast(label+' saved!', 'success'); render(); }
+  else toast('Enter value first', 'error');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+function init(){
+  // Theme
+  const theme=LS.g('theme','dark');
+  document.documentElement.setAttribute('data-theme',theme);
+  if(theme==='light'){document.documentElement.style.cssText='--bg:#f8faff;--sf:#fff;--s2:#eef2ff;--s3:#e2e8ff;--bd:rgba(0,0,0,.08);--b2:rgba(0,0,0,.14);--tx:#0f172a;--mu:#4a5580';}
+
+  // Restore session
+  const session=getSession();
+  if(session){
+    S.user=session;
+    // Start live listeners immediately
+    setTimeout(startLiveListeners, 500);
+    if(session.role==='admin')           go('admin');
+    else if(session.status==='active')   go('home');
+    else if(session.status==='pending')  go('pending');
+    else                                  go('login');
+  } else {
+    go('login');
+  }
+}
+
+window.addEventListener('DOMContentLoaded',init);
+
+// Back button handler
+window.addEventListener('popstate',()=>{
+  if(S.page==='exam'){if(confirm('Exit test? Progress will be lost.')){clearInterval(S.examTimer);S.examSession=null;go('tests');}}
+});
+nually.',tag:'Manual approval'},
+    ].map(o=>'<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)"><div style="font-size:22px;flex-shrink:0">'+o.i+'</div><div><p style="font-weight:700;font-size:13px">'+o.t+' <span style="font-size:11px;color:var(--mu);font-weight:500">— '+o.tag+'</span></p><p style="font-size:12px;color:var(--mu)">'+o.d+'</p></div></div>').join('')}
   </div>
 
   <div style="margin-top:20px;padding:14px;border-radius:13px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2)">
